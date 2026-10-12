@@ -1,0 +1,52 @@
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs & Temporary Files
+logs/
+*.log
+scratch/
+temp/
+tmp/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Media & Database Files
+*.wav
+*.mp3
+*.ogg
+*.raw
+*.pcm
+*.webm
+app/static/recordings/*
+!app/static/recordings/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+

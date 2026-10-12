@@ -1,0 +1,2547 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous Voice Campaign Dashboard — Welfog AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="/static/piopiy.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #080C14;
+            --bg-card: rgba(17, 24, 39, 0.75);
+            --bg-card-border: rgba(255, 255, 255, 0.08);
+            --accent-teal: #10B981;
+            --accent-cyan: #06B6D4;
+            --accent-violet: #8B5CF6;
+            --accent-amber: #F59E0B;
+            --accent-rose: #EF4444;
+            --text-main: #F9FAFB;
+            --text-muted: #9CA3AF;
+            --font-display: 'Outfit', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 60%);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 70px;
+            /* Room for floating player */
+        }
+
+        /* Header */
+        header {
+            width: 100%;
+            padding: 16px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--bg-card-border);
+            background: rgba(8, 12, 20, 0.85);
+            backdrop-filter: blur(16px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .brand-section {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2));
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .brand-icon svg {
+            width: 22px;
+            height: 22px;
+            fill: var(--accent-teal);
+        }
+
+        .brand-title {
+            font-family: var(--font-display);
+            font-size: 19px;
+            font-weight: 700;
+        }
+
+        .brand-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .telecmi-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--bg-card-border);
+            color: var(--text-muted);
+        }
+
+        .telecmi-status.connected {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.4);
+            color: #34D399;
+        }
+
+        .telecmi-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .btn-logout {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--bg-card-border);
+            color: var(--text-muted);
+            padding: 7px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-logout:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #F87171;
+        }
+
+        /* Main Container */
+        main {
+            flex: 1;
+            padding: 24px 32px;
+            max-width: 1600px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* KPI Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 16px;
+        }
+
+        .metric-card {
+            background: var(--bg-card);
+            border: 1px solid var(--bg-card-border);
+            backdrop-filter: blur(14px);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, currentColor, transparent);
+            opacity: 0.6;
+        }
+
+        .metric-card.total {
+            color: #60A5FA;
+        }
+
+        .metric-card.pending {
+            color: var(--accent-amber);
+        }
+
+        .metric-card.completed {
+            color: var(--accent-teal);
+        }
+
+        .metric-card.noanswer {
+            color: var(--accent-rose);
+        }
+
+        .metric-card.duration {
+            color: var(--accent-violet);
+        }
+
+        .metric-card.rate {
+            color: var(--accent-cyan);
+        }
+
+        .metric-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+
+        .metric-value {
+            font-family: var(--font-display);
+            font-size: 28px;
+            font-weight: 700;
+            color: #FFFFFF;
+        }
+
+        .metric-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Campaign Banner */
+        .campaign-banner {
+            background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.85));
+            border: 1px solid var(--bg-card-border);
+            border-radius: 18px;
+            padding: 24px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        }
+
+        .campaign-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .campaign-title {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .campaign-beacon {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .campaign-beacon.active {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            color: #34D399;
+            animation: pulse 1.8s infinite;
+        }
+
+        .campaign-beacon.idle {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--bg-card-border);
+            color: var(--text-muted);
+        }
+
+        .campaign-desc {
+            color: var(--text-muted);
+            font-size: 13px;
+            line-height: 1.5;
+            max-width: 900px;
+        }
+
+        .campaign-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn-campaign {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 11px 22px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+        }
+
+        .btn-start-campaign {
+            background: linear-gradient(135deg, var(--accent-teal), #059669);
+            color: #ffffff;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
+        }
+
+        .btn-start-campaign:hover {
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .btn-pause-campaign {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4) !important;
+            color: #F87171;
+        }
+
+        .btn-retry-unanswered {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            color: #FBBF24;
+        }
+
+        .btn-retry-unanswered:hover {
+            background: rgba(245, 158, 11, 0.25);
+        }
+
+        .btn-reset-queue {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--bg-card-border);
+            color: var(--text-muted);
+        }
+
+        .btn-reset-queue:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+        }
+
+        /* Active Call Monitor Bar */
+        .active-call-bar {
+            margin-top: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 14px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .active-call-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .call-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: rgba(6, 182, 212, 0.2);
+            border: 1px solid var(--accent-cyan);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .call-details-name {
+            font-weight: 700;
+            font-size: 15px;
+            color: #ffffff;
+        }
+
+        .call-details-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .active-call-center {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .live-timer {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            letter-spacing: 1px;
+        }
+
+        .wave-canvas {
+            width: 140px;
+            height: 32px;
+        }
+
+        .btn-skip-call {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #F87171;
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-skip-call:hover {
+            background: rgba(239, 68, 68, 0.35);
+        }
+
+        /* Dashboard Layout Grid */
+        .dashboard-content-grid {
+            display: grid;
+            grid-template-columns: 2.2fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1200px) {
+            .dashboard-content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--bg-card-border);
+            backdrop-filter: blur(14px);
+            border-radius: 18px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .card-title {
+            font-family: var(--font-display);
+            font-size: 17px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .table-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--bg-card-border);
+            color: var(--text-main);
+            padding: 7px 14px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-action:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-add-cust {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: #34D399;
+        }
+
+        .btn-add-cust:hover {
+            background: rgba(16, 185, 129, 0.25);
+        }
+
+        .btn-export-csv {
+            background: rgba(139, 92, 246, 0.15);
+            border-color: rgba(139, 92, 246, 0.3);
+            color: #C4B5FD;
+        }
+
+        .btn-export-csv:hover {
+            background: rgba(139, 92, 246, 0.25);
+        }
+
+        /* Filters Bar */
+        .filters-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filter-pills {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--bg-card-border);
+            color: var(--text-muted);
+            padding: 5px 12px;
+            border-radius: 9999px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pill:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .pill.active {
+            background: rgba(6, 182, 212, 0.15);
+            border-color: rgba(6, 182, 212, 0.4);
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+
+        .search-input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--bg-card-border);
+            color: #ffffff;
+            padding: 7px 12px;
+            border-radius: 10px;
+            font-size: 12px;
+            outline: none;
+            width: 220px;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        /* Tables */
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--bg-card-border);
+            background: rgba(0, 0, 0, 0.25);
+            max-height: 520px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 12px 14px;
+            color: var(--text-muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--bg-card-border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            color: #D1D5DB;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .status-badge.PENDING {
+            background: rgba(245, 158, 11, 0.15);
+            color: #FBBF24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .status-badge.CALLING {
+            background: rgba(6, 182, 212, 0.15);
+            color: #38BDF8;
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            animation: pulse 1.2s infinite;
+        }
+
+        .status-badge.CONNECTED {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34D399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-badge.COMPLETED {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10B981;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+
+        .status-badge.NO_ANSWER {
+            background: rgba(239, 68, 68, 0.15);
+            color: #F87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .status-badge.BUSY {
+            background: rgba(239, 68, 68, 0.15);
+            color: #F87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .status-badge.FAILED {
+            background: rgba(239, 68, 68, 0.15);
+            color: #F87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .action-icons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .icon-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: 1px solid var(--bg-card-border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+        }
+
+        .icon-btn.call-now:hover {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34D399;
+            border-color: rgba(16, 185, 129, 0.4);
+        }
+
+        .icon-btn.edit-cust:hover {
+            background: rgba(6, 182, 212, 0.2);
+            color: #38BDF8;
+            border-color: rgba(6, 182, 212, 0.4);
+        }
+
+        .icon-btn.delete:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: #F87171;
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-play-audio {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #34D399;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .btn-play-audio:hover {
+            background: rgba(16, 185, 129, 0.3);
+            color: #ffffff;
+            transform: scale(1.04);
+        }
+
+        /* Live Session Terminal & History */
+        .terminal-box {
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 12px;
+            height: 280px;
+            overflow-y: auto;
+            padding: 12px 14px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .log-line {
+            display: flex;
+            gap: 8px;
+            line-height: 1.4;
+        }
+
+        .log-time {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        .log-info {
+            color: #38BDF8;
+        }
+
+        .log-success {
+            color: #34D399;
+        }
+
+        .log-error {
+            color: #F87171;
+        }
+
+        .log-ai {
+            color: #FBBF24;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .history-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(6, 182, 212, 0.3);
+        }
+
+        .history-item-left {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .history-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .history-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Floating Global Audio Mini-Player Bar */
+        .floating-player-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(16, 185, 129, 0.4);
+            padding: 10px 28px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            z-index: 1000;
+            box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.6);
+        }
+
+        .floating-player-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 220px;
+        }
+
+        .floating-player-badge {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34D399;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .floating-player-title {
+            font-size: 13px;
+            color: #ffffff;
+        }
+
+        .floating-audio-controls {
+            flex: 1;
+            max-width: 600px;
+        }
+
+        .floating-audio-controls audio {
+            width: 100%;
+            height: 36px;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        .btn-close-player {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--bg-card-border);
+            color: var(--text-muted);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .btn-close-player:hover {
+            color: #ffffff;
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+        }
+
+        .modal-box {
+            background: #111827;
+            border: 1px solid var(--bg-card-border);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 540px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7);
+        }
+
+        .modal-title {
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .form-control {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--bg-card-border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 14px;
+            color: #ffffff;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 90px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--bg-card-border);
+            color: var(--text-muted);
+            padding: 9px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-teal), #059669);
+            border: none;
+            color: #ffffff;
+            padding: 9px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Hidden WebRTC Audio Element for TeleCMI playback -->
+    <audio id="telecmi_audio_tag" autoplay playsinline
+        style="position:fixed; top:-9999px; left:-9999px; width:1px; height:1px; opacity:0.01; pointer-events:none;"></audio>
+
+    <!-- Top Navigation Header -->
+    <header>
+        <div class="brand-section">
+            <div class="brand-icon">
+                <svg viewBox="0 0 24 24">
+                    <path
+                        d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.24 1.02l-2.21 2.2z" />
+                </svg>
+            </div>
+            <div>
+                <div class="brand-title">Welfog AI Calling Console</div>
+                <div class="brand-subtitle">Autonomous Voice Agent (Gemini 2.5 Live × TeleCMI WebRTC)</div>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <div id="telecmiStatus" class="telecmi-status">
+                <div class="telecmi-dot"></div>
+                <span id="telecmiStatusText">Connecting TeleCMI...</span>
+            </div>
+
+            <div style="font-size:13px; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
+                <span>👤 <strong>admin</strong></span>
+            </div>
+
+            <button class="btn-logout" onclick="handleLogout()">Sign Out</button>
+        </div>
+    </header>
+
+    <main>
+        <!-- Metrics Grid -->
+        <div class="metrics-grid">
+            <div class="metric-card total">
+                <span class="metric-label">Total Onboarded</span>
+                <span id="statTotal" class="metric-value">0</span>
+                <span class="metric-sub">Customers in queue</span>
+            </div>
+            <div class="metric-card pending">
+                <span class="metric-label">Queue Pending</span>
+                <span id="statPending" class="metric-value">0</span>
+                <span class="metric-sub">Awaiting call</span>
+            </div>
+            <div class="metric-card completed">
+                <span class="metric-label">Calls Completed</span>
+                <span id="statCompleted" class="metric-value">0</span>
+                <span class="metric-sub">Answered &amp; processed</span>
+            </div>
+            <div class="metric-card noanswer">
+                <span class="metric-label">No Answer / Busy</span>
+                <span id="statNoAnswer" class="metric-value">0</span>
+                <span class="metric-sub">Ringing timed out</span>
+            </div>
+            <div class="metric-card duration">
+                <span class="metric-label">Total Talk Time</span>
+                <span id="statDuration" class="metric-value">0s</span>
+                <span class="metric-sub">Actual answered conversation</span>
+            </div>
+            <div class="metric-card rate">
+                <span class="metric-label">Confirmation Rate</span>
+                <span id="statRate" class="metric-value">0.0%</span>
+                <span class="metric-sub">Answer completion rate</span>
+            </div>
+        </div>
+
+        <!-- Auto-Dialer Campaign Controller Banner -->
+        <div class="campaign-banner">
+            <div class="campaign-info">
+                <div class="campaign-title-row">
+                    <div class="campaign-title">
+                        <span>⚡ Autonomous Auto-Calling Campaign</span>
+                    </div>
+                    <span id="campaignBeacon" class="campaign-beacon idle">Idle</span>
+                </div>
+                <div class="campaign-desc">
+                    AI will automatically call each customer one by one in queue. Calls are recorded with dual-stream
+                    audio, talk durations are tracked accurately (unanswered calls are flagged as No Answer), and
+                    conversation logs are saved to MySQL.
+                </div>
+            </div>
+
+            <div class="campaign-controls">
+                <button id="btnStartCampaign" class="btn-campaign btn-start-campaign" onclick="toggleCampaign()">
+                    <span>🚀 Start Auto-Dialing Campaign</span>
+                </button>
+                <button class="btn-campaign btn-retry-unanswered" onclick="retryUnansweredQueue()">
+                    <span>🔁 Retry Unanswered / Busy</span>
+                </button>
+                <button class="btn-campaign btn-reset-queue" onclick="resetAllQueue()">
+                    <span>🔄 Reset All to Pending</span>
+                </button>
+            </div>
+
+            <!-- Active Call Monitor Box -->
+            <div id="activeCallBar" class="active-call-bar" style="display: none;">
+                <div class="active-call-left">
+                    <div class="call-avatar">📞</div>
+                    <div>
+                        <div id="activeCustomerName" class="call-details-name">-</div>
+                        <div id="activeCustomerPhone" class="call-details-sub">-</div>
+                    </div>
+                </div>
+
+                <div class="active-call-center">
+                    <div id="activeCallStatusBadge" class="status-badge CALLING">Ringing...</div>
+                    <div id="activeCallTimer" class="live-timer">00:00</div>
+                    <canvas id="activeVisualizer" class="wave-canvas"></canvas>
+                </div>
+
+                <div class="active-call-right">
+                    <button class="btn-skip-call" onclick="skipCurrentCall()">Hang Up &amp; Next ⏭</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Two-Column Content Grid -->
+        <div class="dashboard-content-grid">
+            <!-- Left Column: Customer Queue & Management -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span>👥 Customer Queue &amp; Onboarding</span>
+                    </div>
+                    <div class="table-actions">
+                        <button class="btn-action btn-add-cust" onclick="openAddModal()">+ Onboard Customer</button>
+                        <button class="btn-action" onclick="openBulkModal()">📥 Bulk Import</button>
+                        <button class="btn-action btn-export-csv" onclick="exportCustomersCSV()">📊 Export CSV</button>
+                    </div>
+                </div>
+
+                <div class="filters-bar">
+                    <div class="filter-pills">
+                        <button class="pill active" onclick="setFilter('ALL', this)">All</button>
+                        <button class="pill" onclick="setFilter('PENDING', this)">Pending</button>
+                        <button class="pill" onclick="setFilter('CALLING', this)">Calling</button>
+                        <button class="pill" onclick="setFilter('COMPLETED', this)">Completed</button>
+                        <button class="pill" onclick="setFilter('NO_ANSWER', this)">No Answer / Busy</button>
+                    </div>
+
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search name, phone, order..."
+                        oninput="handleSearch()" />
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Customer Name</th>
+                                <th>Phone Number</th>
+                                <th>Order ID</th>
+                                <th>Status</th>
+                                <th>Talk Duration</th>
+                                <th>Recording</th>
+                                <th>Last Call</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersTableBody">
+                            <tr>
+                                <td colspan="8" style="text-align:center; padding: 24px;">Loading customers...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Right Column: Live Session & Call History -->
+            <div style="display:flex; flex-direction:column; gap:24px;">
+                <!-- Live AI Session Terminal -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <span>⚡ Live Conversation &amp; AI Feed</span>
+                        </div>
+                    </div>
+                    <div id="liveTerminal" class="terminal-box">
+                        <div class="log-line"><span class="log-time">[System]</span> <span class="log-info">Console
+                                initialized. Awaiting calls...</span></div>
+                    </div>
+                </div>
+
+                <!-- Recent Call History -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <span>📋 Recent Call History &amp; Recordings</span>
+                        </div>
+                    </div>
+                    <div id="historyList" class="history-list">
+                        <div style="text-align:center; padding: 16px; color:var(--text-muted); font-size:12px;">No call
+                            records yet.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Floating Audio Player Bar -->
+    <div id="floatingPlayerBar" class="floating-player-bar">
+        <div class="floating-player-info">
+            <span class="floating-player-badge">🎙️ RECORDING</span>
+            <div id="floatingPlayerTitle" class="floating-player-title">Customer Audio</div>
+        </div>
+        <div class="floating-audio-controls">
+            <audio id="floatingAudioPlayer" controls></audio>
+        </div>
+        <button class="btn-close-player" onclick="closeFloatingPlayer()" title="Close Player">✕</button>
+    </div>
+
+    <!-- Modal: Single Customer Onboarding -->
+    <div id="modalAddCustomer" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">+ Onboard Customer</div>
+            <div class="form-group">
+                <label>Customer Full Name</label>
+                <input type="text" id="addName" class="form-control" placeholder="e.g. Ramesh Kumar" />
+            </div>
+            <div class="form-group">
+                <label>Mobile Number (10 Digits)</label>
+                <input type="text" id="addPhone" class="form-control" placeholder="e.g. 9876543210" />
+            </div>
+            <div class="form-group">
+                <label>Welfog Order ID</label>
+                <input type="text" id="addOrder" class="form-control" value="WF-10928" placeholder="e.g. WF-10928" />
+            </div>
+            <div class="form-group">
+                <label>Delivery Address (Verified on call)</label>
+                <textarea id="addNotes" class="form-control"
+                    placeholder="e.g. Plot 42, Near Metro Station, Mansarovar, Jaipur (PIN: 302020)"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModals()">Cancel</button>
+                <button class="btn-primary" onclick="submitAddCustomer()">Add to Queue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Edit Customer -->
+    <div id="modalEditCustomer" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">✏️ Edit Customer Details</div>
+            <input type="hidden" id="editCustomerId" />
+            <div class="form-group">
+                <label>Customer Full Name</label>
+                <input type="text" id="editName" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Mobile Number</label>
+                <input type="text" id="editPhone" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Welfog Order ID</label>
+                <input type="text" id="editOrder" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Delivery Address (Verified on call)</label>
+                <textarea id="editNotes" class="form-control"
+                    placeholder="e.g. Plot 42, Near Metro Station, Mansarovar, Jaipur (PIN: 302020)"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModals()">Cancel</button>
+                <button class="btn-primary" onclick="submitEditCustomer()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Bulk Customer Import -->
+    <div id="modalBulkImport" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">📥 Bulk Onboard Customers</div>
+            <div class="form-group">
+                <label>Paste Phone Numbers (One per line or Name, Phone, OrderID)</label>
+                <textarea id="bulkText" class="form-control" style="min-height: 140px;"
+                    placeholder="Example:&#10;Arjun Sharma, 9876543210, WF-10928&#10;Rahul Verma, 9876543211, WF-10929&#10;9123456780"></textarea>
+            </div>
+            <div style="font-size:12px; color:var(--text-muted);">
+                💡 You can paste 10, 50, or 500 numbers at once. They will be added to the queue automatically.
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModals()">Cancel</button>
+                <button class="btn-primary" onclick="submitBulkImport()">Import All Numbers</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: View Call Transcript & Notes -->
+    <div id="modalTranscript" class="modal-overlay">
+        <div class="modal-box" style="max-width: 620px;">
+            <div class="modal-title">📄 Call Details &amp; Audio Recording</div>
+            <div id="transcriptHeader" style="font-size: 13px; color: var(--text-muted);"></div>
+
+            <!-- In-Modal Recording Player -->
+            <div id="transcriptAudioContainer"
+                style="display:none; background:rgba(0,0,0,0.3); border:1px solid var(--bg-card-border); border-radius:12px; padding:12px;">
+                <label
+                    style="font-size:12px; font-weight:600; color:var(--accent-teal); display:block; margin-bottom:6px;">🎙️
+                    Call Recording Audio</label>
+                <audio id="modalAudioPlayer" controls style="width:100%; height:38px; border-radius:8px;"></audio>
+            </div>
+
+            <div class="form-group">
+                <label>AI Summary / Outcome</label>
+                <div id="transcriptSummary"
+                    style="background:rgba(255,255,255,0.04); padding:10px 12px; border-radius:8px; font-size:13px; color:#34D399;">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Full Conversation Dialogue</label>
+                <div id="transcriptBody"
+                    style="background:rgba(0,0,0,0.4); padding:12px; border-radius:10px; font-family:'Courier New', monospace; font-size:12px; max-height:220px; overflow-y:auto; white-space:pre-wrap;">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModals()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // State
+        let customers = [];
+        let currentFilter = 'ALL';
+        let searchQuery = '';
+        let isCampaignActive = false;
+        let isCallingInProgress = false;
+        let currentCustomer = null;
+        let hasCallAnswered = false; // CRITICAL: strictly true only when customer answers!
+        let callTimerInterval = null;
+        let callSeconds = 0;
+        let piopiy = null;
+        let isRegistered = false;
+        let aiWebSocket = null;
+        let audioCtx = null;
+        let aiMediaDest = null;
+        let recordingDest = null;
+        let mediaRecorder = null;
+        let recordedAudioChunks = [];
+        let customerCaptureNode = null;
+        let customerRecSourceNode = null;
+        let customerRecGain = null;
+        let remoteSourceNode = null;
+        let remotePreampNode = null;
+        let localRecSourceNode = null;
+        let localRecGain = null;
+        let audioMixer = null;
+        let nextPlayTime = 0;
+        let localStreamRef = null;
+        let conversationTranscript = [];
+        let cachedCallLogs = [];
+        let ringSafetyTimeout = null;
+
+        // Logger
+        function log(msg, type = 'info') {
+            const term = document.getElementById('liveTerminal');
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = 'log-line';
+            div.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${msg}</span>`;
+            term.appendChild(div);
+            term.scrollTop = term.scrollHeight;
+        }
+
+        // Audio Context Helper
+        function getAudioCtx() {
+            if (!audioCtx) {
+                const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioCtxClass();
+                aiMediaDest = audioCtx.createMediaStreamDestination();
+                recordingDest = audioCtx.createMediaStreamDestination();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        // Downsample to 16kHz PCM using high-fidelity linear interpolation (zero dropouts)
+        function downsampleTo16k(buffer, sampleRate) {
+            if (!buffer || buffer.length === 0) return new Int16Array(0);
+
+            if (sampleRate === 16000) {
+                const pcm16 = new Int16Array(buffer.length);
+                for (let i = 0; i < buffer.length; i++) {
+                    const s = Math.max(-1, Math.min(1, buffer[i]));
+                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+                return pcm16;
+            }
+
+            const ratio = sampleRate / 16000;
+            const newLength = Math.round(buffer.length / ratio);
+            const result = new Int16Array(newLength);
+
+            // High-fidelity linear interpolation without zeroing out speech
+            for (let i = 0; i < newLength; i++) {
+                const origPos = i * ratio;
+                const index1 = Math.floor(origPos);
+                const index2 = Math.min(index1 + 1, buffer.length - 1);
+                const weight = origPos - index1;
+                const sample = buffer[index1] * (1 - weight) + buffer[index2] * weight;
+                const clamped = Math.max(-1, Math.min(1, sample));
+                result[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
+            }
+            return result;
+        }
+
+        // Intercept getUserMedia so TeleCMI WebRTC connects ONLY to AI speech output
+        const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getUserMedia = async function (constraints) {
+            if (constraints && constraints.audio) {
+                const ctx = getAudioCtx();
+                try {
+                    // Request mic permission so browser & TeleCMI SDK initialization succeeds
+                    const realStream = await originalGetUserMedia({ audio: true });
+                    localStreamRef = realStream;
+                    // STRICT OPERATOR ISOLATION: Mute laptop mic so zero room noise/friend voice enters call
+                    realStream.getAudioTracks().forEach(t => { t.enabled = false; });
+                } catch (e) {
+                    console.warn('Real mic access:', e);
+                }
+                // TeleCMI WebRTC transmits aiMediaDest.stream (pure Gemini speech only!)
+                return aiMediaDest.stream;
+            }
+            return originalGetUserMedia(constraints);
+        };
+
+        // Initialize TeleCMI WebRTC SDK
+        function initTeleCMI() {
+            try {
+                log('Initializing TeleCMI WebRTC Agent...', 'info');
+                piopiy = new PIOPIY({ name: 'Welfog Agent', debug: false, autoplay: true, ringTime: 40 });
+
+                piopiy.on('login', () => {
+                    isRegistered = true;
+                    log('✅ TeleCMI WebRTC agent registered.', 'success');
+                    const badge = document.getElementById('telecmiStatus');
+                    badge.className = 'telecmi-status connected';
+                    document.getElementById('telecmiStatusText').textContent = 'TeleCMI Ready';
+                });
+
+                piopiy.on('loginFailed', (err) => {
+                    isRegistered = false;
+                    log('❌ TeleCMI agent login failed: ' + JSON.stringify(err), 'error');
+                });
+
+                piopiy.on('ringing', () => {
+                    log('🔔 Customer phone is ringing...', 'info');
+                    document.getElementById('activeCallStatusBadge').textContent = 'Ringing...';
+                    document.getElementById('activeCallStatusBadge').className = 'status-badge CALLING';
+                    // Pre-warm Gemini Live connection while phone rings so it is ready on pickup with ZERO latency!
+                    connectAiWebSocket();
+                });
+
+                piopiy.on('answered', () => {
+                    if (ringSafetyTimeout) {
+                        clearTimeout(ringSafetyTimeout);
+                        ringSafetyTimeout = null;
+                    }
+                    hasCallAnswered = true;
+                    log('🎉 Customer answered! Bridging AI audio & starting call recording...', 'success');
+                    document.getElementById('activeCallStatusBadge').textContent = 'Connected (AI Live)';
+                    document.getElementById('activeCallStatusBadge').className = 'status-badge CONNECTED';
+
+                    startCallTimer(); // Start talk timer ONLY upon pickup
+                    startVisualizer();
+                    startRecordingPipeline(); // Start in-browser recording mixer
+
+                    if (!aiWebSocket || aiWebSocket.readyState !== WebSocket.OPEN) {
+                        connectAiWebSocket();
+                    } else {
+                        // Pre-warmed Gemini connection is ready! Dispatch opening greeting immediately upon pickup
+                        aiWebSocket.send(JSON.stringify({ action: "call_answered", event: "answered" }));
+                        log('⚡ Customer answered phone — triggered Priya greeting immediately with zero delay!', 'info');
+                    }
+
+                    // Bridge WebRTC audio track to transmit Gemini synthesized speech
+                    setTimeout(() => bridgeAiToPeerConnection(), 150);
+
+                    setTimeout(() => {
+                        const audioTag = document.getElementById('telecmi_audio_tag');
+                        if (audioTag && audioTag.srcObject) {
+                            bindTrackEndedListeners(audioTag.srcObject);
+                            setupCustomerAudioPipeline(audioTag.srcObject);
+                        }
+                    }, 250);
+                });
+
+                piopiy.on('callStream', (event) => {
+                    if (event && event.status) {
+                        const audioTag = document.getElementById('telecmi_audio_tag');
+                        if (audioTag) {
+                            audioTag.srcObject = event.status;
+                            audioTag.play().catch(e => console.warn(e));
+                        }
+                        bindTrackEndedListeners(event.status);
+                        bridgeAiToPeerConnection();
+                        // ONLY connect customer voice stream to AI listener if the call has actually answered!
+                        if (hasCallAnswered) {
+                            setupCustomerAudioPipeline(event.status);
+                        }
+                    }
+                });
+
+                const handleCallEnded = () => {
+                    log('📞 Customer hung up / call completed.', 'info');
+                    onCallCompleted();
+                };
+
+                piopiy.on('ended', handleCallEnded);
+                piopiy.on('hangup', handleCallEnded);
+                piopiy.on('failed', () => {
+                    log('⚠️ Call rejected or failed to connect.', 'error');
+                    onCallFailed('FAILED');
+                });
+                piopiy.on('disconnected', handleCallEnded);
+                piopiy.on('terminated', handleCallEnded);
+
+                // Authenticate dynamically via server WebRTC configuration
+                fetch('/api/telecmi/webrtc-config')
+                    .then(res => res.json())
+                    .then(cfg => {
+                        if (cfg && cfg.user_id && cfg.password) {
+                            piopiy.login(cfg.user_id, cfg.password, cfg.sbc || 'sbcind.telecmi.com');
+                        }
+                    })
+                    .catch(err => {
+                        console.warn('Could not fetch WebRTC config:', err);
+                    });
+
+            } catch (err) {
+                log('Error initializing TeleCMI SDK: ' + err.message, 'error');
+            }
+        }
+
+        function bindTrackEndedListeners(stream) {
+            if (!stream || !stream.getAudioTracks) return;
+            stream.getAudioTracks().forEach(track => {
+                track.onended = () => {
+                    log('Remote phone audio track ended.', 'info');
+                    onCallCompleted();
+                };
+            });
+        }
+
+        function bridgeAiToPeerConnection() {
+            try {
+                if (!piopiy || !piopiy.ua || !piopiy.ua._sessions) return;
+                for (const id in piopiy.ua._sessions) {
+                    const sess = piopiy.ua._sessions[id];
+                    const pc = sess._connection || sess.connection;
+                    if (pc && pc.getSenders) {
+                        const senders = pc.getSenders().filter(s => s.track && s.track.kind === 'audio');
+                        for (const sender of senders) {
+                            if (aiMediaDest && aiMediaDest.stream && aiMediaDest.stream.getAudioTracks().length > 0) {
+                                const aiTrack = aiMediaDest.stream.getAudioTracks()[0];
+                                sender.replaceTrack(aiTrack).then(() => {
+                                    log('📡 Gemini speech output bridged to phone line via WebRTC.', 'success');
+                                }).catch(e => console.warn(e));
+                            }
+                        }
+                    }
+                }
+            } catch (e) { console.warn(e); }
+        }
+
+        function setupCustomerAudioPipeline(remoteStream) {
+            if (!remoteStream) return;
+            try {
+                const ctx = getAudioCtx();
+                if (customerCaptureNode) {
+                    try { customerCaptureNode.disconnect(); } catch (e) { }
+                    customerCaptureNode.onaudioprocess = null;
+                    customerCaptureNode = null;
+                }
+                if (remoteSourceNode) {
+                    try { remoteSourceNode.disconnect(); } catch (e) { }
+                    remoteSourceNode = null;
+                }
+                if (remotePreampNode) {
+                    try { remotePreampNode.disconnect(); } catch (e) { }
+                    remotePreampNode = null;
+                }
+
+                // Single MediaStreamSourceNode for the remote phone stream
+                remoteSourceNode = ctx.createMediaStreamSource(remoteStream);
+
+                // 2.5x Preamp Clarity Boost for cellular telephony audio
+                remotePreampNode = ctx.createGain();
+                remotePreampNode.gain.value = 2.5;
+                remoteSourceNode.connect(remotePreampNode);
+
+                // 1. FAN-OUT to call recording destination (pure phone caller audio saved into .webm)
+                if (recordingDest) {
+                    remotePreampNode.connect(recordingDest);
+                }
+
+                // 2. FAN-OUT to ScriptProcessorNode for real-time WebSocket streaming to Gemini Live
+                customerCaptureNode = ctx.createScriptProcessor(2048, 1, 1);
+                let chunkSentCount = 0;
+
+                customerCaptureNode.onaudioprocess = (e) => {
+                    if (!hasCallAnswered) return; // NEVER forward ringing or early audio to Gemini!
+                    if (!aiWebSocket || aiWebSocket.readyState !== WebSocket.OPEN) return;
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    const pcm16 = downsampleTo16k(inputData, ctx.sampleRate);
+                    if (pcm16 && pcm16.length > 0) {
+                        aiWebSocket.send(pcm16.buffer);
+                        chunkSentCount++;
+
+                        // Periodically check energy to log and confirm customer voice is actively streaming
+                        if (chunkSentCount % 35 === 0) {
+                            let peakVal = 0;
+                            for (let i = 0; i < pcm16.length; i++) {
+                                const abs = Math.abs(pcm16[i]);
+                                if (abs > peakVal) peakVal = abs;
+                            }
+                            if (peakVal > 250) {
+                                log(`🎙️ Customer voice stream active (Peak: ${peakVal}) → feeding Gemini AI`, 'info');
+                            }
+                        }
+                    }
+                };
+
+                remotePreampNode.connect(customerCaptureNode);
+
+                // Keep-alive gain node (1e-5) to prevent Chromium audio render thread silent culling
+                const keepAliveNode = ctx.createGain();
+                keepAliveNode.gain.setValueAtTime(0.00001, ctx.currentTime);
+                customerCaptureNode.connect(keepAliveNode);
+                keepAliveNode.connect(ctx.destination);
+
+                log('🎤 Telephony audio pipeline active: Single source feeding both AI listener & recording mixer.', 'success');
+            } catch (err) {
+                log('Error in customer audio pipeline: ' + err.message, 'error');
+            }
+        }
+
+        // Keep backwards compatibility wrappers
+        function pipeAudioToAi(stream) { setupCustomerAudioPipeline(stream); }
+        function attachStreamToRecording(stream) { /* handled in setupCustomerAudioPipeline */ }
+        function attachLocalMicToRecording(stream) { /* laptop mic is 100% isolated */ }
+
+        function startRecordingPipeline() {
+            try {
+                const ctx = getAudioCtx();
+                recordedAudioChunks = [];
+
+                let mimeType = 'audio/webm;codecs=opus';
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+                }
+
+                const options = mimeType ? { mimeType } : {};
+                mediaRecorder = new MediaRecorder(recordingDest.stream, options);
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) {
+                        recordedAudioChunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.start(250);
+                log('🎙️ In-browser call recording started (mixed dual-channel).', 'info');
+            } catch (err) {
+                console.warn('Recording start error:', err);
+            }
+        }
+
+        async function stopAndSaveRecording() {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') return null;
+
+            return new Promise((resolve) => {
+                mediaRecorder.onstop = async () => {
+                    try {
+                        if (!recordedAudioChunks || recordedAudioChunks.length === 0) {
+                            resolve(null);
+                            return;
+                        }
+
+                        const blob = new Blob(recordedAudioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+                        if (blob.size < 600) {
+                            resolve(null);
+                            return;
+                        }
+
+                        const formData = new FormData();
+                        const filename = `call_${currentCustomer ? currentCustomer.phone : 'rec'}_${Date.now()}.webm`;
+                        formData.append('audio', blob, filename);
+
+                        const res = await fetch('/api/recordings/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await res.json();
+                        if (data.success && data.recording_url) {
+                            log('💾 Call audio recording saved & linked to dashboard.', 'success');
+                            resolve(data.recording_url);
+                        } else {
+                            resolve(null);
+                        }
+                    } catch (err) {
+                        console.error('Recording upload error:', err);
+                        resolve(null);
+                    }
+                };
+
+                try { mediaRecorder.stop(); } catch (e) { resolve(null); }
+            });
+        }
+
+        // Active audio node tracking for instant interruption cancellation
+        let activeGeminiSources = [];
+
+        function stopAllGeminiAudio() {
+            for (let s of activeGeminiSources) {
+                try { s.stop(); } catch (e) { }
+            }
+            activeGeminiSources = [];
+            const ctx = getAudioCtx();
+            nextPlayTime = ctx ? ctx.currentTime : 0;
+        }
+
+        function playGeminiPcm(arrayBuffer) {
+            try {
+                const ctx = getAudioCtx();
+                const int16 = new Int16Array(arrayBuffer);
+                const float32 = new Float32Array(int16.length);
+                for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
+
+                const audioBuffer = ctx.createBuffer(1, float32.length, 16000);
+                audioBuffer.getChannelData(0).set(float32);
+
+                const source = ctx.createBufferSource();
+                source.buffer = audioBuffer;
+
+                if (aiMediaDest) source.connect(aiMediaDest);
+                source.connect(ctx.destination);
+                // Level-balanced recording mix: scale Gemini to 0.75 so customer voice (boosted to 2.5x) is equally loud & clear
+                if (recordingDest) {
+                    const geminiRecGain = ctx.createGain();
+                    geminiRecGain.gain.value = 0.75;
+                    source.connect(geminiRecGain);
+                    geminiRecGain.connect(recordingDest);
+                }
+
+                activeGeminiSources.push(source);
+                source.onended = () => {
+                    const idx = activeGeminiSources.indexOf(source);
+                    if (idx !== -1) activeGeminiSources.splice(idx, 1);
+                };
+
+                // Strict consecutive playback queue (NEVER play chunks concurrently on top of each other!)
+                const currentTime = ctx.currentTime;
+                if (nextPlayTime < currentTime) {
+                    nextPlayTime = currentTime;
+                }
+                source.start(nextPlayTime);
+                nextPlayTime += audioBuffer.duration;
+            } catch (err) { console.error('Gemini play error:', err); }
+        }
+
+        function connectAiWebSocket() {
+            if (!currentCustomer) return;
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const orderId = encodeURIComponent(currentCustomer.order_id || 'WF-10928');
+            const phone = encodeURIComponent(currentCustomer.phone);
+            const name = encodeURIComponent(currentCustomer.name || 'Customer');
+            const address = encodeURIComponent(currentCustomer.notes || 'Plot 42, Near Metro Station, Mansarovar, Jaipur (302020)');
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/telecmi?call_id=${orderId}&order_id=${orderId}&phone=${phone}&name=${name}&address=${address}`;
+
+            aiWebSocket = new WebSocket(wsUrl);
+            aiWebSocket.binaryType = 'arraybuffer';
+
+            aiWebSocket.onopen = () => {
+                log(`🤖 AI Session pre-warmed for ${currentCustomer.name} (${orderId})`, 'success');
+                if (hasCallAnswered) {
+                    aiWebSocket.send(JSON.stringify({ action: "call_answered", event: "answered" }));
+                    log('⚡ Customer pickup signaled to Gemini Live — Priya greeting now!', 'info');
+                }
+            };
+
+            aiWebSocket.onmessage = (event) => {
+                if (event.data instanceof ArrayBuffer) {
+                    playGeminiPcm(event.data);
+                } else if (typeof event.data === 'string') {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.event === 'interrupted') {
+                            log('⚡ Customer spoke — AI interrupted. Stopped previous speech instantly.', 'info');
+                            stopAllGeminiAudio();
+                        } else if (data.event === 'turn_complete') {
+                            log('👂 Priya (AI) finished speaking — listening for customer...', 'info');
+                        } else if (data.event === 'tool_calling') {
+                            log(`⚙️ Priya is looking up live info via tool: ${data.tool}...`, 'info');
+                        } else if (data.text) {
+                            const cleaned = data.text.trim();
+                            log(`Priya (AI): "${cleaned}"`, 'ai');
+                            conversationTranscript.push(`Priya (AI): ${cleaned}`);
+                        }
+                    } catch (e) { }
+                }
+            };
+
+            aiWebSocket.onerror = (err) => log('AI WebSocket error', 'error');
+        }
+
+        // Call Timer (starts only when answered)
+        function startCallTimer() {
+            callSeconds = 0;
+            clearInterval(callTimerInterval);
+            callTimerInterval = setInterval(() => {
+                callSeconds++;
+                const mins = String(Math.floor(callSeconds / 60)).padStart(2, '0');
+                const secs = String(callSeconds % 60).padStart(2, '0');
+                document.getElementById('activeCallTimer').textContent = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function stopCallTimer() {
+            clearInterval(callTimerInterval);
+            callTimerInterval = null;
+        }
+
+        // Visualizer
+        let animId = null;
+        function startVisualizer() {
+            const canvas = document.getElementById('activeVisualizer');
+            const ctx = canvas.getContext('2d');
+            let phase = 0;
+            function draw() {
+                animId = requestAnimationFrame(draw);
+                phase += 0.08;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#06B6D4';
+                const mid = canvas.height / 2;
+                for (let x = 0; x < canvas.width; x++) {
+                    const y = mid + Math.sin(x * 0.08 + phase) * 12 * Math.sin(phase * 0.4);
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+            draw();
+        }
+
+        function stopVisualizer() {
+            if (animId) cancelAnimationFrame(animId);
+            const canvas = document.getElementById('activeVisualizer');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // Autonomous Campaign Execution Loop
+        async function startNextCallInCampaign() {
+            if (!isCampaignActive) return;
+
+            try {
+                const res = await fetch('/api/campaign/next');
+                if (!res.ok) {
+                    if (res.status === 401) window.location.href = '/login';
+                    return;
+                }
+                const data = await res.json();
+
+                if (!data.has_next || !data.customer) {
+                    log('🎉 All customers in queue have been called! Campaign finished.', 'success');
+                    setCampaignActive(false);
+                    document.getElementById('activeCallBar').style.display = 'none';
+                    refreshDashboard();
+                    return;
+                }
+
+                const cust = data.customer;
+                currentCustomer = cust;
+                isCallingInProgress = true;
+                hasCallAnswered = false; // Reset answered flag for new call
+                callSeconds = 0;         // Reset duration to 0
+                stopCallTimer();
+                conversationTranscript = [];
+
+                // Show active call monitor
+                document.getElementById('activeCallBar').style.display = 'flex';
+                document.getElementById('activeCustomerName').textContent = cust.name;
+                document.getElementById('activeCustomerPhone').textContent = `+91 ${cust.phone} • Order: ${cust.order_id || 'WF-10928'}`;
+                document.getElementById('activeCallStatusBadge').textContent = 'Dialing...';
+                document.getElementById('activeCallStatusBadge').className = 'status-badge CALLING';
+                document.getElementById('activeCallTimer').textContent = '00:00';
+
+                log(`📞 Auto-Dialing next in queue: ${cust.name} (+91 ${cust.phone})...`, 'info');
+
+                // Update status in MySQL
+                await fetch(`/api/customers/${cust.id}/status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'CALLING' })
+                });
+                loadCustomers();
+
+                // Trigger WebRTC Outbound Call
+                let formattedPhone = cust.phone.replace(/\D/g, '');
+                if (formattedPhone.length === 10) formattedPhone = '91' + formattedPhone;
+
+                // 45-Second Ring Timeout Safety Guard (prevents hanging in Dialing/Ringing)
+                if (ringSafetyTimeout) {
+                    clearTimeout(ringSafetyTimeout);
+                    ringSafetyTimeout = null;
+                }
+                ringSafetyTimeout = setTimeout(() => {
+                    if (isCallingInProgress && !hasCallAnswered) {
+                        log('⏱️ Customer did not pick up within 45s (Ring timeout). Marking NO_ANSWER.', 'error');
+                        skipCurrentCall();
+                    }
+                }, 45000);
+
+                getAudioCtx();
+                try {
+                    piopiy.call(formattedPhone, { extra_param: cust.order_id || 'WF-10928' });
+                } catch (callErr) {
+                    log(`⚠️ Call trigger error for ${cust.name}: ${callErr.message}`, 'error');
+                    onCallFailed('FAILED');
+                }
+
+            } catch (err) {
+                log('Error fetching next customer: ' + err.message, 'error');
+                setCampaignActive(false);
+            }
+        }
+
+        async function onCallCompleted() {
+            if (!isCallingInProgress || !currentCustomer) return;
+            if (ringSafetyTimeout) {
+                clearTimeout(ringSafetyTimeout);
+                ringSafetyTimeout = null;
+            }
+            isCallingInProgress = false;
+            stopCallTimer();
+            stopVisualizer();
+            stopAllGeminiAudio();
+
+            if (aiWebSocket) {
+                try { aiWebSocket.close(); } catch (e) { }
+                aiWebSocket = null;
+            }
+            if (customerCaptureNode) {
+                try { customerCaptureNode.disconnect(); } catch (e) { }
+                customerCaptureNode = null;
+            }
+            if (audioMixer) {
+                try { audioMixer.disconnect(); } catch (e) { }
+                audioMixer = null;
+            }
+            if (customerRecSourceNode) {
+                try { customerRecSourceNode.disconnect(); } catch (e) { }
+                customerRecSourceNode = null;
+            }
+            if (localRecSourceNode) {
+                try { localRecSourceNode.disconnect(); } catch (e) { }
+                localRecSourceNode = null;
+            }
+            nextPlayTime = 0;
+
+            // Stop and save audio recording if answered
+            let recUrl = null;
+            if (hasCallAnswered) {
+                recUrl = await stopAndSaveRecording();
+            } else {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    try { mediaRecorder.stop(); } catch (e) { }
+                }
+            }
+
+            // CRITICAL STATUS ACCURACY LOGIC
+            let finalStatus = 'NO_ANSWER';
+            let finalDuration = 0;
+            let summaryStr = '';
+
+            if (!hasCallAnswered) {
+                // Customer never picked up or call timed out ringing
+                finalStatus = 'NO_ANSWER';
+                finalDuration = 0;
+                summaryStr = 'Phone rang but was not answered by customer (Timed out / Missed).';
+                log(`⚠️ Call with ${currentCustomer.name} was NOT answered (NO_ANSWER, 0s).`, 'error');
+            } else {
+                // Customer actually answered!
+                finalDuration = callSeconds;
+                if (finalDuration >= 4) {
+                    finalStatus = 'COMPLETED';
+                    summaryStr = 'Customer answered and completed voice conversation with Priya.';
+                    log(`✅ Call with ${currentCustomer.name} finished (${finalDuration}s, COMPLETED).`, 'success');
+                } else {
+                    finalStatus = 'NO_ANSWER';
+                    summaryStr = 'Customer answered and disconnected immediately.';
+                    log(`⚠️ Call with ${currentCustomer.name} disconnected immediately (${finalDuration}s).`, 'error');
+                }
+            }
+
+            const transcriptStr = conversationTranscript.length > 0
+                ? conversationTranscript.join('\n')
+                : (hasCallAnswered ? 'Call answered.' : 'No conversation dialogue - phone rang but customer did not pick up.');
+
+            try {
+                await fetch('/api/call-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customer_id: currentCustomer.id,
+                        phone: currentCustomer.phone,
+                        customer_name: currentCustomer.name,
+                        order_id: currentCustomer.order_id || 'WF-10928',
+                        status: finalStatus,
+                        duration: finalDuration,
+                        summary: summaryStr,
+                        transcript: transcriptStr,
+                        recording_url: recUrl || ''
+                    })
+                });
+            } catch (e) { console.error('Save log error:', e); }
+
+            currentCustomer = null;
+            hasCallAnswered = false;
+            callSeconds = 0;
+            refreshDashboard();
+
+            // If campaign is active, wait 4 seconds for telephony line cleanup and auto-call NEXT!
+            if (isCampaignActive) {
+                log('⏳ Next call initiating in 4 seconds...', 'info');
+                document.getElementById('activeCallStatusBadge').textContent = 'Next in 4s...';
+                document.getElementById('activeCallStatusBadge').className = 'status-badge PENDING';
+                setTimeout(() => {
+                    if (isCampaignActive) startNextCallInCampaign();
+                }, 4000);
+            } else {
+                document.getElementById('activeCallBar').style.display = 'none';
+            }
+        }
+
+        function onCallFailed(failStatus = 'FAILED') {
+            if (!isCallingInProgress || !currentCustomer) return;
+            if (ringSafetyTimeout) {
+                clearTimeout(ringSafetyTimeout);
+                ringSafetyTimeout = null;
+            }
+            isCallingInProgress = false;
+            stopCallTimer();
+            stopVisualizer();
+
+            if (aiWebSocket) {
+                try { aiWebSocket.close(); } catch (e) { }
+                aiWebSocket = null;
+            }
+            if (customerCaptureNode) {
+                try { customerCaptureNode.disconnect(); } catch (e) { }
+                customerCaptureNode = null;
+            }
+            if (audioMixer) {
+                try { audioMixer.disconnect(); } catch (e) { }
+                audioMixer = null;
+            }
+            if (customerRecSourceNode) {
+                try { customerRecSourceNode.disconnect(); } catch (e) { }
+                customerRecSourceNode = null;
+            }
+            if (localRecSourceNode) {
+                try { localRecSourceNode.disconnect(); } catch (e) { }
+                localRecSourceNode = null;
+            }
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                try { mediaRecorder.stop(); } catch (e) { }
+            }
+
+            const custId = currentCustomer.id;
+            const custPhone = currentCustomer.phone;
+            const custName = currentCustomer.name;
+
+            fetch('/api/call-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customer_id: custId,
+                    phone: custPhone,
+                    customer_name: custName,
+                    status: 'NO_ANSWER',
+                    duration: 0,
+                    summary: 'Call attempt failed or rejected by network.',
+                    transcript: 'Call failed to establish.'
+                })
+            }).then(() => refreshDashboard());
+
+            currentCustomer = null;
+            hasCallAnswered = false;
+            callSeconds = 0;
+
+            if (isCampaignActive) {
+                log('Call failed. Moving to next customer in 3 seconds...', 'error');
+                setTimeout(() => {
+                    if (isCampaignActive) startNextCallInCampaign();
+                }, 3000);
+            } else {
+                document.getElementById('activeCallBar').style.display = 'none';
+            }
+        }
+
+        function skipCurrentCall() {
+            if (piopiy) {
+                try { piopiy.terminate(); } catch (e) { }
+                try { piopiy.hangup(); } catch (e) { }
+            }
+            onCallCompleted();
+        }
+
+        function setCampaignActive(active) {
+            isCampaignActive = active;
+            const beacon = document.getElementById('campaignBeacon');
+            const btn = document.getElementById('btnStartCampaign');
+
+            if (active) {
+                beacon.className = 'campaign-beacon active';
+                beacon.textContent = 'Auto-Calling Active';
+                btn.innerHTML = '<span>⏸ Pause Campaign</span>';
+                btn.className = 'btn-campaign btn-pause-campaign';
+            } else {
+                beacon.className = 'campaign-beacon idle';
+                beacon.textContent = 'Idle';
+                btn.innerHTML = '<span>🚀 Start Auto-Dialing Campaign</span>';
+                btn.className = 'btn-campaign btn-start-campaign';
+            }
+        }
+
+        function toggleCampaign() {
+            if (!isRegistered) {
+                alert('TeleCMI is still initializing. Please wait 3 seconds and retry.');
+                return;
+            }
+            setCampaignActive(!isCampaignActive);
+            if (isCampaignActive && !isCallingInProgress) {
+                log('🚀 Autonomous Auto-Dialing Campaign started!', 'success');
+                startNextCallInCampaign();
+            } else if (!isCampaignActive) {
+                log('Campaign paused by user.', 'info');
+            }
+        }
+
+        async function callSingleCustomer(id) {
+            if (isCallingInProgress) {
+                alert('A call is currently in progress. Please hang up or wait for completion.');
+                return;
+            }
+            const cust = customers.find(c => c.id === id);
+            if (!cust) return;
+
+            currentCustomer = cust;
+            isCallingInProgress = true;
+            hasCallAnswered = false;
+            callSeconds = 0;
+            stopCallTimer();
+            conversationTranscript = [];
+
+            document.getElementById('activeCallBar').style.display = 'flex';
+            document.getElementById('activeCustomerName').textContent = cust.name;
+            document.getElementById('activeCustomerPhone').textContent = `+91 ${cust.phone} • Order: ${cust.order_id || 'WF-10928'}`;
+            document.getElementById('activeCallStatusBadge').textContent = 'Dialing...';
+            document.getElementById('activeCallStatusBadge').className = 'status-badge CALLING';
+            document.getElementById('activeCallTimer').textContent = '00:00';
+
+            log(`📞 Manual Call initiated for ${cust.name} (+91 ${cust.phone})...`, 'info');
+
+            await fetch(`/api/customers/${cust.id}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'CALLING' })
+            });
+            loadCustomers();
+
+            let formattedPhone = cust.phone.replace(/\D/g, '');
+            if (formattedPhone.length === 10) formattedPhone = '91' + formattedPhone;
+
+            // 45-Second Ring Timeout Safety Guard
+            if (ringSafetyTimeout) {
+                clearTimeout(ringSafetyTimeout);
+                ringSafetyTimeout = null;
+            }
+            ringSafetyTimeout = setTimeout(() => {
+                if (isCallingInProgress && !hasCallAnswered) {
+                    log('⏱️ Customer did not pick up within 45s (Ring timeout). Marking NO_ANSWER.', 'error');
+                    skipCurrentCall();
+                }
+            }, 45000);
+
+            getAudioCtx();
+            try {
+                piopiy.call(formattedPhone, { extra_param: cust.order_id || 'WF-10928' });
+            } catch (callErr) {
+                log(`⚠️ Call trigger error for ${cust.name}: ${callErr.message}`, 'error');
+                onCallFailed('FAILED');
+            }
+        }
+
+        // Dashboard Data Fetching
+        async function loadCustomers() {
+            try {
+                let url = `/api/customers?status=${currentFilter}`;
+                if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+                const res = await fetch(url);
+                if (res.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+                const data = await res.json();
+                customers = data.customers || [];
+                renderCustomersTable();
+            } catch (err) {
+                console.error('Load customers error:', err);
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/stats');
+                if (res.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+                const data = await res.json();
+                document.getElementById('statTotal').textContent = data.total_customers || 0;
+                document.getElementById('statPending').textContent = data.pending_calls || 0;
+                document.getElementById('statCompleted').textContent = data.completed_calls || 0;
+                document.getElementById('statNoAnswer').textContent = data.no_answer_calls || 0;
+
+                const totalSecs = data.total_duration_seconds || 0;
+                const mins = Math.floor(totalSecs / 60);
+                const secs = totalSecs % 60;
+                document.getElementById('statDuration').textContent = `${mins}m ${secs}s`;
+                document.getElementById('statRate').textContent = `${data.success_rate_percent || 0}%`;
+            } catch (err) {
+                console.error('Load stats error:', err);
+            }
+        }
+
+        async function loadHistory() {
+            try {
+                const res = await fetch('/api/call-logs?limit=20');
+                if (res.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+                const data = await res.json();
+                const logs = data.logs || [];
+                cachedCallLogs = logs;
+                const container = document.getElementById('historyList');
+
+                if (logs.length === 0) {
+                    container.innerHTML = '<div style="text-align:center; padding: 16px; color:var(--text-muted); font-size:12px;">No call records yet.</div>';
+                    return;
+                }
+
+                container.innerHTML = logs.map((l, idx) => {
+                    const recBtn = l.recording_url
+                        ? `<button class="btn-play-audio" onclick="event.stopPropagation(); playRecording('${l.recording_url}', '${escapeHtml(l.customer_name)}', '${escapeHtml(l.phone)}')">▶ Play</button>`
+                        : '';
+                    return `
+            <div class="history-item" onclick="openTranscriptModalFromHistory(${idx})">
+              <div class="history-item-left">
+                <span class="history-name">${escapeHtml(l.customer_name || 'Customer')} (${escapeHtml(l.phone)})</span>
+                <span class="history-sub">${l.duration}s &bull; ${escapeHtml(l.created_at)}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                ${recBtn}
+                <span class="status-badge ${l.status}">${l.status}</span>
+              </div>
+            </div>
+          `;
+                }).join('');
+            } catch (err) {
+                console.error('Load history error:', err);
+            }
+        }
+
+        function openTranscriptModalFromHistory(idx) {
+            const l = cachedCallLogs[idx];
+            if (!l) return;
+            openTranscriptModal(l.customer_id || 0, l.phone, l.summary, l.transcript, l.recording_url);
+        }
+
+        function refreshDashboard() {
+            loadCustomers();
+            loadStats();
+            loadHistory();
+        }
+
+        function renderCustomersTable() {
+            const tbody = document.getElementById('customersTableBody');
+            if (customers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 32px; color:var(--text-muted);">No customers found matching filter.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = customers.map(c => {
+                const recCell = c.recording_url
+                    ? `<button class="btn-play-audio" onclick="playRecording('${c.recording_url}', '${escapeHtml(c.name)}', '${escapeHtml(c.phone)}')">▶ Listen</button>`
+                    : `<span style="color:var(--text-muted); font-size:11px;">-</span>`;
+
+                const addrDisplay = c.notes && c.notes !== 'Bulk Import' && c.notes !== 'Bulk Pasted'
+                    ? c.notes
+                    : 'Plot 42, Near Metro Station, Mansarovar, Jaipur (302020)';
+
+                return `
+          <tr>
+            <td>
+              <strong>${escapeHtml(c.name)}</strong>
+              <div style="font-size:11px; color:#38BDF8; margin-top:2px; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(addrDisplay)}">📍 ${escapeHtml(addrDisplay)}</div>
+            </td>
+            <td>+91 ${escapeHtml(c.phone)}</td>
+            <td><code style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px;">${escapeHtml(c.order_id || 'WF-10928')}</code></td>
+            <td><span class="status-badge ${c.status}">${c.status}</span></td>
+            <td><strong>${c.call_duration ? c.call_duration + 's' : '0s'}</strong></td>
+            <td>${recCell}</td>
+            <td>${c.last_called_at || '-'}</td>
+            <td>
+              <div class="action-icons">
+                <button class="icon-btn call-now" title="Call Now" onclick="callSingleCustomer(${c.id})">📞</button>
+                <button class="icon-btn edit-cust" title="Edit Customer" onclick="openEditModal(${c.id})">✏️</button>
+                <button class="icon-btn" title="View Transcript &amp; Summary" onclick="viewCustomerDetails(${c.id})">📄</button>
+                <button class="icon-btn" title="Reset to Pending" onclick="resetCustomer(${c.id})">🔄</button>
+                <button class="icon-btn delete" title="Delete" onclick="deleteCustomer(${c.id})">🗑</button>
+              </div>
+            </td>
+          </tr>
+        `;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+
+        // Audio Playback
+        function playRecording(url, customerName, phone) {
+            if (!url) return;
+            const playerBar = document.getElementById('floatingPlayerBar');
+            const playerAudio = document.getElementById('floatingAudioPlayer');
+            const playerTitle = document.getElementById('floatingPlayerTitle');
+
+            playerTitle.innerHTML = `<strong>${escapeHtml(customerName || 'Customer')}</strong> &bull; +91 ${escapeHtml(phone || '')}`;
+            playerAudio.src = url;
+            playerBar.style.display = 'flex';
+            playerAudio.play().catch(e => console.warn('Play error:', e));
+        }
+
+        function closeFloatingPlayer() {
+            const playerBar = document.getElementById('floatingPlayerBar');
+            const playerAudio = document.getElementById('floatingAudioPlayer');
+            playerAudio.pause();
+            playerAudio.src = '';
+            playerBar.style.display = 'none';
+        }
+
+        // Filter & Search
+        function setFilter(status, elem) {
+            currentFilter = status;
+            document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+            elem.classList.add('active');
+            loadCustomers();
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('searchInput').value.trim();
+            loadCustomers();
+        }
+
+        // Customer Actions
+        async function resetCustomer(id) {
+            await fetch(`/api/customers/${id}/reset`, { method: 'POST' });
+            refreshDashboard();
+        }
+
+        async function deleteCustomer(id) {
+            if (!confirm('Are you sure you want to delete this customer?')) return;
+            await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+            refreshDashboard();
+        }
+
+        async function resetAllQueue() {
+            if (!confirm('Reset all completed and failed calls back to PENDING for a fresh campaign?')) return;
+            await fetch('/api/customers/reset-all', { method: 'POST' });
+            log('Queue reset to PENDING for all customers.', 'info');
+            refreshDashboard();
+        }
+
+        async function retryUnansweredQueue() {
+            const res = await fetch('/api/customers/retry-unanswered', { method: 'POST' });
+            const data = await res.json();
+            log(`🔁 ${data.reset_count} unanswered/busy customer(s) reset to PENDING!`, 'success');
+            refreshDashboard();
+        }
+
+        function exportCustomersCSV() {
+            window.location.href = '/api/customers/export-csv';
+        }
+
+        // Modals
+        function openAddModal() {
+            document.getElementById('addName').value = '';
+            document.getElementById('addPhone').value = '';
+            document.getElementById('addOrder').value = 'WF-10928';
+            document.getElementById('addNotes').value = '';
+            document.getElementById('modalAddCustomer').style.display = 'flex';
+        }
+
+        function openEditModal(id) {
+            const cust = customers.find(c => c.id === id);
+            if (!cust) return;
+            document.getElementById('editCustomerId').value = cust.id;
+            document.getElementById('editName').value = cust.name;
+            document.getElementById('editPhone').value = cust.phone;
+            document.getElementById('editOrder').value = cust.order_id || 'WF-10928';
+            document.getElementById('editNotes').value = cust.notes || '';
+            document.getElementById('modalEditCustomer').style.display = 'flex';
+        }
+
+        function openBulkModal() {
+            document.getElementById('bulkText').value = '';
+            document.getElementById('modalBulkImport').style.display = 'flex';
+        }
+
+        function closeModals() {
+            document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+            const modalAudio = document.getElementById('modalAudioPlayer');
+            if (modalAudio) {
+                modalAudio.pause();
+                modalAudio.src = '';
+            }
+        }
+
+        async function submitAddCustomer() {
+            const name = document.getElementById('addName').value.trim() || 'Customer';
+            const phone = document.getElementById('addPhone').value.trim();
+            const order_id = document.getElementById('addOrder').value.trim() || 'WF-10928';
+            const notes = document.getElementById('addNotes').value.trim();
+
+            if (!phone || phone.length < 10) {
+                alert('Please enter a valid 10-digit phone number.');
+                return;
+            }
+
+            await fetch('/api/customers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, phone, order_id, notes })
+            });
+
+            closeModals();
+            refreshDashboard();
+            log(`Customer ${name} (+91 ${phone}) added to calling queue.`, 'success');
+        }
+
+        async function submitEditCustomer() {
+            const id = document.getElementById('editCustomerId').value;
+            const name = document.getElementById('editName').value.trim();
+            const phone = document.getElementById('editPhone').value.trim();
+            const order_id = document.getElementById('editOrder').value.trim();
+            const notes = document.getElementById('editNotes').value.trim();
+
+            if (!phone || phone.length < 10) {
+                alert('Please enter a valid 10-digit phone number.');
+                return;
+            }
+
+            await fetch(`/api/customers/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, phone, order_id, notes })
+            });
+
+            closeModals();
+            refreshDashboard();
+            log(`Customer #${id} updated successfully.`, 'success');
+        }
+
+        async function submitBulkImport() {
+            const raw_text = document.getElementById('bulkText').value.trim();
+            if (!raw_text) {
+                alert('Please enter at least one phone number.');
+                return;
+            }
+
+            const res = await fetch('/api/customers/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ raw_text })
+            });
+            const data = await res.json();
+
+            closeModals();
+            refreshDashboard();
+            log(`📥 Bulk Import: ${data.imported_count} numbers onboarded into queue!`, 'success');
+        }
+
+        async function viewCustomerDetails(id) {
+            const res = await fetch(`/api/customers/${id}`);
+            if (!res.ok) return;
+            const cust = await res.json();
+            openTranscriptModal(cust.id, cust.phone, cust.call_summary, cust.transcript, cust.recording_url);
+        }
+
+        function openTranscriptModal(id, phone, summary, transcript, recording_url) {
+            document.getElementById('transcriptHeader').textContent = `Customer ID: #${id} • Phone: +91 ${phone}`;
+            document.getElementById('transcriptSummary').textContent = summary || 'No summary recorded.';
+            document.getElementById('transcriptBody').textContent = transcript || 'No conversation transcript recorded for this call.';
+
+            const audioCont = document.getElementById('transcriptAudioContainer');
+            const audioTag = document.getElementById('modalAudioPlayer');
+
+            if (recording_url) {
+                audioTag.src = recording_url;
+                audioCont.style.display = 'block';
+            } else {
+                audioTag.src = '';
+                audioCont.style.display = 'none';
+            }
+
+            document.getElementById('modalTranscript').style.display = 'flex';
+        }
+
+        // Logout
+        async function handleLogout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/login';
+        }
+
+        // Init on Page Load
+        window.addEventListener('DOMContentLoaded', () => {
+            initTeleCMI();
+            refreshDashboard();
+            // Auto-refresh stats every 6 seconds
+            setInterval(refreshDashboard, 6000);
+        });
+    </script>
+</body>
+
+</html>

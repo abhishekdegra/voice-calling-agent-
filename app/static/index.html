@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welfog AI Voice Calling Agent | Live Telephony Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #07090E;
+      --bg-card: rgba(17, 24, 39, 0.75);
+      --bg-card-border: rgba(255, 255, 255, 0.08);
+      --accent-teal: #0D9488;
+      --accent-cyan: #06B6D4;
+      --accent-green: #10B981;
+      --accent-red: #EF4444;
+      --accent-glow: rgba(13, 148, 136, 0.25);
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --font-display: 'Outfit', sans-serif;
+      --font-body: 'Inter', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(13, 148, 136, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(6, 182, 212, 0.12) 0%, transparent 40%);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    header {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding: 16px 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent-teal), var(--accent-cyan));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    .brand-icon svg {
+      width: 22px;
+      height: 22px;
+      fill: #ffffff;
+    }
+
+    .brand-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 500;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--bg-card-border);
+      transition: all 0.3s ease;
+    }
+
+    .status-badge.connected {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #34D399;
+    }
+
+    .status-badge.calling {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: rgba(6, 182, 212, 0.4);
+      color: #38BDF8;
+      animation: pulse 1.5s infinite;
+    }
+
+    .status-badge.error {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #F87171;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    main {
+      width: 100%;
+      max-width: 1100px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      backdrop-filter: blur(12px);
+      border-radius: 18px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    .card-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    input, select {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--bg-card-border);
+      color: #ffffff;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+    }
+
+    .agent-meta-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px dashed var(--bg-card-border);
+      border-radius: 12px;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .meta-item span:first-child {
+      color: var(--text-muted);
+    }
+
+    .meta-item span:last-child {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+      font-family: var(--font-display);
+    }
+
+    .btn-call {
+      background: linear-gradient(135deg, var(--accent-teal), #059669);
+      color: #ffffff;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-call:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+    }
+
+    .btn-call:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-hangup {
+      background: linear-gradient(135deg, #DC2626, #B91C1C);
+      color: #ffffff;
+      box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+    }
+
+    .btn-hangup:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(220, 38, 38, 0.45);
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .visualizer-container {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 14px;
+      height: 110px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    canvas#audioVisualizer {
+      width: 100%;
+      height: 100%;
+    }
+
+    .visualizer-overlay-text {
+      position: absolute;
+      font-size: 12px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .logs-container {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--bg-card-border);
+      border-radius: 12px;
+      height: 250px;
+      overflow-y: auto;
+      padding: 12px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 8px;
+    }
+
+    .log-time {
+      color: var(--text-muted);
+    }
+
+    .log-info { color: #38BDF8; }
+    .log-success { color: #34D399; }
+    .log-error { color: #F87171; }
+    .log-ai { color: #FBBF24; }
+
+    @keyframes pulse {
+      0% { opacity: 0.7; transform: scale(0.99); }
+      50% { opacity: 1; transform: scale(1.01); }
+      100% { opacity: 0.7; transform: scale(0.99); }
+    }
+  </style>
+
+  <!-- Global Audio Context and WebRTC Interception -->
+  <script>
+    let audioCtx = null;
+    let aiMediaDest = null;
+    let remoteSourceNode = null;
+    let remotePreampNode = null;
+    let nextPlayTime = 0;
+    let localStreamRef = null;
+
+    function getAudioCtx() {
+      if (!audioCtx) {
+        // Use default hardware sample rate (e.g. 48000 Hz) for compatibility with WebRTC & Bluetooth
+        const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioCtxClass();
+        aiMediaDest = audioCtx.createMediaStreamDestination();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    // Intercept getUserMedia so TeleCMI transmits ONLY pure Gemini AI speech
+    const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = async function(constraints) {
+      if (constraints && constraints.audio) {
+        const ctx = getAudioCtx();
+        try {
+          // Acquire mic for browser/TeleCMI permission handshake
+          const realStream = await originalGetUserMedia({ audio: true });
+          localStreamRef = realStream;
+          // STRICT OPERATOR ISOLATION: Mute laptop mic so zero room noise/friend voice enters
+          realStream.getAudioTracks().forEach(t => { t.enabled = false; });
+        } catch (e) {
+          console.warn('Real mic access warning:', e);
+        }
+        // TeleCMI WebRTC transmits aiMediaDest.stream (pure Gemini speech only!)
+        return aiMediaDest.stream;
+      }
+      return originalGetUserMedia(constraints);
+    };
+
+    // Downsample arbitrary audio buffer (e.g. 48000 Hz) to 16000 Hz 16-bit PCM using linear interpolation (zero dropouts)
+    function downsampleTo16k(buffer, sampleRate) {
+      if (!buffer || buffer.length === 0) return new Int16Array(0);
+
+      if (sampleRate === 16000) {
+        const pcm16 = new Int16Array(buffer.length);
+        for (let i = 0; i < buffer.length; i++) {
+          const s = Math.max(-1, Math.min(1, buffer[i]));
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        return pcm16;
+      }
+
+      const ratio = sampleRate / 16000;
+      const newLength = Math.round(buffer.length / ratio);
+      const result = new Int16Array(newLength);
+
+      // High-fidelity linear interpolation without zeroing out speech
+      for (let i = 0; i < newLength; i++) {
+        const origPos = i * ratio;
+        const index1 = Math.floor(origPos);
+        const index2 = Math.min(index1 + 1, buffer.length - 1);
+        const weight = origPos - index1;
+        const sample = buffer[index1] * (1 - weight) + buffer[index2] * weight;
+        const clamped = Math.max(-1, Math.min(1, sample));
+        result[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
+      }
+      return result;
+    }
+  </script>
+
+  <script src="/static/piopiy.min.js"></script>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24"><path d="M6.62 10.79a15.053 15.053 0 006.59 6.59l2.2-2.2a1 1 0 011.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.24 1.02l-2.21 2.2z"/></svg>
+      </div>
+      <div>
+        <div class="brand-title">Welfog AI Voice Agent</div>
+        <div class="brand-subtitle">Gemini Live × TeleCMI WebRTC Telephony Console</div>
+      </div>
+    </div>
+    <div id="sipStatusBadge" class="status-badge">
+      <div class="status-dot"></div>
+      <span id="sipStatusText">Initializing TeleCMI...</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Call Controls Section -->
+    <div class="card">
+      <div class="card-title">
+        <span>📞</span> Outbound Customer Dial
+      </div>
+
+      <div class="form-group">
+        <label for="customerPhone">Customer Mobile Number (10 Digits)</label>
+        <input type="text" id="customerPhone" value="9876543210" placeholder="e.g. 9876543210" />
+      </div>
+
+      <div class="form-group">
+        <label for="orderId">Welfog Order ID (For Context Lookup)</label>
+        <input type="text" id="orderId" value="WF-10928" placeholder="e.g. WF-10928" />
+      </div>
+
+      <div class="form-group">
+        <label for="aiVoiceMode">Calling Mode</label>
+        <select id="aiVoiceMode">
+          <option value="gemini_ai">🤖 Gemini Multimodal Live AI (Hindi Autonomous Confirmation)</option>
+          <option value="human_agent">👤 Direct Agent Call (Manual Speak &amp; Listen)</option>
+        </select>
+      </div>
+
+      <div class="agent-meta-box">
+        <div class="meta-item">
+          <span>TeleCMI Agent</span>
+          <span id="agentIdLabel">5002_33338876</span>
+        </div>
+        <div class="meta-item">
+          <span>Caller ID</span>
+          <span id="callerIdLabel">TeleCMI Ready</span>
+        </div>
+        <div class="meta-item">
+          <span>SBC Gateway</span>
+          <span>sbcind.telecmi.com</span>
+        </div>
+        <div class="meta-item">
+          <span>AI Engine</span>
+          <span>Gemini 2.5 Flash Native Audio</span>
+        </div>
+      </div>
+
+      <div class="controls-row">
+        <button id="btnStartCall" class="action-btn btn-call" onclick="handleStartCall()">
+          <span>📞</span> Call Customer
+        </button>
+        <button id="btnHangupCall" class="action-btn btn-hangup" onclick="handleHangupCall()" style="display:none;">
+          <span>🛑</span> Hang Up Call
+        </button>
+      </div>
+
+      <div class="visualizer-container">
+        <canvas id="audioVisualizer"></canvas>
+        <div id="visualizerOverlay" class="visualizer-overlay-text">Audio Inactive</div>
+      </div>
+    </div>
+
+    <!-- Live Event Log & AI Transcript Section -->
+    <div class="card">
+      <div class="card-title">
+        <span>⚡</span> Live Activity &amp; AI Session
+      </div>
+
+      <div id="logsContainer" class="logs-container">
+        <!-- Live logs appear here -->
+      </div>
+
+      <div class="form-group">
+        <label>Live Knowledge / RAG Status</label>
+        <div style="font-size:13px; color:var(--text-muted); display:flex; gap:16px;">
+          <span>Qdrant: <strong style="color:#34D399;">Connected (aidata.welfog.com)</strong></span>
+          <span>Orders API: <strong style="color:#34D399;">Active</strong></span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Audio tag required by TeleCMI PIOPIY SDK (must not be display:none for Chrome WebRTC audio pipeline) -->
+  <audio id="telecmi_audio_tag" autoplay playsinline style="position:fixed; top:-9999px; left:-9999px; width:1px; height:1px; opacity:0.01; pointer-events:none;"></audio>
+
+  <script>
+    let piopiy = null;
+    let isRegistered = false;
+    let activeCall = false;
+    let aiWebSocket = null;
+    let customerCaptureNode = null;
+
+    function log(message, type = 'info') {
+      const container = document.getElementById('logsContainer');
+      const time = new Date().toLocaleTimeString();
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.innerHTML = `<span class="log-time">[${time}]</span> <span class="log-${type}">${message}</span>`;
+      container.appendChild(line);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function updateStatus(status, text) {
+      const badge = document.getElementById('sipStatusBadge');
+      const textElem = document.getElementById('sipStatusText');
+      badge.className = 'status-badge ' + status;
+      textElem.textContent = text;
+    }
+
+    let audioMixer = null;
+
+    // Initialize TeleCMI PIOPIY WebRTC SDK
+    function initTeleCMI() {
+      try {
+        log('Initializing TeleCMI PIOPIY WebRTC Client...', 'info');
+        piopiy = new PIOPIY({ name: 'Welfog Agent', debug: true, autoplay: true, ringTime: 60 });
+
+        piopiy.on('login', () => {
+          isRegistered = true;
+          log('✅ Agent 5002_33338876 registered to sbcind.telecmi.com!', 'success');
+          updateStatus('connected', 'Agent Ready');
+          document.getElementById('btnStartCall').disabled = false;
+        });
+
+        piopiy.on('loginFailed', (err) => {
+          isRegistered = false;
+          log(`❌ TeleCMI login failed: ${JSON.stringify(err)}`, 'error');
+          updateStatus('error', 'Login Failed');
+        });
+
+        piopiy.on('ringing', () => {
+          log('🔔 Customer phone is ringing...', 'info');
+          updateStatus('calling', 'Phone Ringing...');
+          // Pre-warm Gemini Live connection while phone rings so it is ready on pickup with ZERO latency
+          connectAiWebSocket();
+        });
+
+        piopiy.on('answered', () => {
+          activeCall = true;
+          log('🎉 Customer answered the call! Telephony audio connected.', 'success');
+          updateStatus('connected', 'Call Connected');
+          document.getElementById('btnStartCall').style.display = 'none';
+          document.getElementById('btnHangupCall').style.display = 'flex';
+          startVisualizer();
+          
+          getAudioCtx();
+          if (!aiWebSocket || aiWebSocket.readyState !== WebSocket.OPEN) {
+            connectAiWebSocket();
+          } else {
+            aiWebSocket.send(JSON.stringify({ action: "call_answered", event: "answered" }));
+            log('⚡ Customer answered phone — triggered Priya greeting immediately with zero delay!', 'info');
+          }
+
+          // Bridge WebRTC audio track to transmit Gemini synthesized speech into the phone call
+          setTimeout(() => {
+            bridgeAiToPeerConnection();
+          }, 150);
+
+          // Tap remote audio stream from audio tag
+          setTimeout(() => {
+            const audioTag = document.getElementById('telecmi_audio_tag');
+            if (audioTag && audioTag.srcObject) {
+              log('Tapped customer phone stream from audio tag.', 'success');
+              bindTrackEndedListeners(audioTag.srcObject);
+              pipeAudioToAi(audioTag.srcObject);
+            }
+          }, 250);
+        });
+
+        piopiy.on('callStream', (event) => {
+          if (event && event.status) {
+            log('Tapped customer phone stream from callStream event.', 'success');
+            const audioTag = document.getElementById('telecmi_audio_tag');
+            if (audioTag) {
+              audioTag.srcObject = event.status;
+              audioTag.play().catch(e => console.warn('audioTag play:', e));
+            }
+            bindTrackEndedListeners(event.status);
+            bridgeAiToPeerConnection();
+            if (activeCall) {
+              pipeAudioToAi(event.status);
+            }
+          }
+        });
+
+        const handleCallEnded = () => {
+          log('📞 Customer hung up / Call ended.', 'info');
+          resetCallUI();
+        };
+
+        // TeleCMI WebRTC emits 'ended' when remote party hangs up
+        piopiy.on('ended', handleCallEnded);
+        piopiy.on('hangup', handleCallEnded);
+        piopiy.on('failed', handleCallEnded);
+        piopiy.on('disconnected', handleCallEnded);
+        piopiy.on('terminated', handleCallEnded);
+        piopiy.on('error', (e) => log(`TeleCMI Error: ${JSON.stringify(e)}`, 'error'));
+
+        // Authenticate dynamically via server WebRTC configuration
+        fetch('/api/telecmi/webrtc-config')
+          .then(res => res.json())
+          .then(cfg => {
+            if (cfg && cfg.user_id && cfg.password) {
+              piopiy.login(cfg.user_id, cfg.password, cfg.sbc || 'sbcind.telecmi.com');
+              if (cfg.caller_id) {
+                document.getElementById('callerIdLabel').textContent = '+' + cfg.caller_id;
+              }
+            }
+          })
+          .catch(err => {
+            console.warn('Could not fetch WebRTC config:', err);
+          });
+
+      } catch (err) {
+        log(`Error initializing PIOPIY SDK: ${err.message}`, 'error');
+        updateStatus('error', 'Init Error');
+      }
+    }
+
+    function bindTrackEndedListeners(stream) {
+      if (!stream || !stream.getAudioTracks) return;
+      stream.getAudioTracks().forEach(track => {
+        track.onended = () => {
+          log('📞 Remote phone audio track ended (customer hung up).', 'info');
+          resetCallUI();
+        };
+      });
+    }
+
+    function bridgeAiToPeerConnection() {
+      try {
+        if (!piopiy || !piopiy.ua || !piopiy.ua._sessions) return;
+        for (const id in piopiy.ua._sessions) {
+          const sess = piopiy.ua._sessions[id];
+          const pc = sess._connection || sess.connection;
+          if (pc && pc.getSenders) {
+            const senders = pc.getSenders().filter(s => s.track && s.track.kind === 'audio');
+            for (const sender of senders) {
+              if (aiMediaDest && aiMediaDest.stream && aiMediaDest.stream.getAudioTracks().length > 0) {
+                const aiTrack = aiMediaDest.stream.getAudioTracks()[0];
+                sender.replaceTrack(aiTrack).then(() => {
+                  log('📡 Bridged Gemini AI audio stream into phone line (WebRTC replaceTrack).', 'success');
+                }).catch(err => {
+                  console.warn('replaceTrack warning:', err);
+                });
+              }
+            }
+          }
+        }
+      } catch(err) {
+        console.warn('bridgeAiToPeerConnection error:', err);
+      }
+    }
+
+    function resetCallUI() {
+      activeCall = false;
+      updateStatus('connected', 'Agent Ready');
+      const btnCall = document.getElementById('btnStartCall');
+      btnCall.style.display = 'flex';
+      btnCall.disabled = false;
+      document.getElementById('btnHangupCall').style.display = 'none';
+      stopVisualizer();
+      stopAllGeminiAudio();
+      nextPlayTime = 0;
+      
+      if (aiWebSocket) {
+        try { aiWebSocket.close(); } catch(e){}
+        aiWebSocket = null;
+      }
+      if (customerCaptureNode) {
+        try { customerCaptureNode.disconnect(); } catch(e){}
+        customerCaptureNode = null;
+      }
+      if (audioMixer) {
+        try { audioMixer.disconnect(); } catch(e){}
+        audioMixer = null;
+      }
+      if (localStreamRef) {
+        try { localStreamRef.getTracks().forEach(t => t.stop()); } catch(e){}
+        localStreamRef = null;
+      }
+    }
+
+    async function handleStartCall() {
+      if (!isRegistered) {
+        alert('TeleCMI agent is still registering, please wait 3 seconds.');
+        return;
+      }
+
+      getAudioCtx();
+
+      let phone = document.getElementById('customerPhone').value.trim();
+      phone = phone.replace(/\D/g, '');
+      if (phone.length === 10) {
+        phone = '91' + phone;
+      }
+
+      const orderId = document.getElementById('orderId').value.trim();
+      log(`Initiating call to ${phone} (Order: ${orderId})...`, 'info');
+      updateStatus('calling', `Dialing ${phone}...`);
+
+      try {
+        piopiy.call(phone, { extra_param: orderId });
+      } catch (err) {
+        log(`Failed to place call: ${err.message}`, 'error');
+        alert(`Call error: ${err.message}`);
+      }
+    }
+
+    function handleHangupCall() {
+      log('🛑 Hanging up call...', 'info');
+      if (piopiy) {
+        try { piopiy.terminate(); } catch (e) {}
+        try { piopiy.hangup(); } catch (e) {}
+        try { piopiy.reject(); } catch (e) {}
+      }
+      resetCallUI();
+    }
+
+    let activeGeminiSources = [];
+
+    function stopAllGeminiAudio() {
+      for (let s of activeGeminiSources) {
+        try { s.stop(); } catch(e){}
+      }
+      activeGeminiSources = [];
+      const ctx = getAudioCtx();
+      nextPlayTime = ctx ? ctx.currentTime : 0;
+    }
+
+    function connectAiWebSocket() {
+      log('🤖 Bridging Gemini Live AI to phone audio...', 'ai');
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const orderId = encodeURIComponent(document.getElementById('orderId').value.trim());
+      const phone = encodeURIComponent(document.getElementById('customerPhone').value.trim());
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws/telecmi?call_id=${orderId}&order_id=${orderId}&phone=${phone}`;
+      
+      aiWebSocket = new WebSocket(wsUrl);
+      aiWebSocket.binaryType = 'arraybuffer';
+
+      aiWebSocket.onopen = () => {
+        log('✅ Gemini Live Connected (Pre-warmed)! Ready for pickup.', 'success');
+        if (activeCall) {
+          aiWebSocket.send(JSON.stringify({ action: "call_answered", event: "answered" }));
+          log('⚡ Customer answered phone — triggered Priya greeting immediately with zero delay!', 'info');
+        }
+      };
+
+      aiWebSocket.onmessage = (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          playGeminiPcm(event.data);
+        } else if (typeof event.data === 'string') {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.event === 'interrupted') {
+              log('⚡ Customer spoke — AI interrupted. Stopped previous speech instantly.', 'info');
+              stopAllGeminiAudio();
+            } else if (data.event === 'turn_complete') {
+              log('👂 Priya (AI) finished speaking — listening for customer response...', 'info');
+            } else if (data.event === 'tool_calling') {
+              log(`⚙️ Priya is looking up live info via tool: ${data.tool}...`, 'info');
+            } else if (data.text) {
+              log(`AI: ${data.text.trim()}`, 'ai');
+            }
+          } catch(e) {
+            log(`AI: ${event.data.substring(0, 100)}`, 'ai');
+          }
+        }
+      };
+
+      aiWebSocket.onerror = (err) => {
+        log(`AI WebSocket error: ${err.message || 'connection issue'}`, 'error');
+      };
+
+      aiWebSocket.onclose = () => {
+        log('AI WebSocket closed.', 'info');
+      };
+    }
+
+    // Pipe ONLY customer voice into Gemini Live (prevents PC speaker echo and operator room noise)
+    function pipeAudioToAi(remoteStream) {
+      if (!remoteStream) return;
+      try {
+        const ctx = getAudioCtx();
+
+        if (customerCaptureNode) {
+          try { customerCaptureNode.disconnect(); } catch(e){}
+          customerCaptureNode.onaudioprocess = null;
+          customerCaptureNode = null;
+        }
+        if (remoteSourceNode) {
+          try { remoteSourceNode.disconnect(); } catch(e){}
+          remoteSourceNode = null;
+        }
+        if (remotePreampNode) {
+          try { remotePreampNode.disconnect(); } catch(e){}
+          remotePreampNode = null;
+        }
+
+        // Single MediaStreamSourceNode for the remote phone stream
+        remoteSourceNode = ctx.createMediaStreamSource(remoteStream);
+
+        // 2.5x Preamp Clarity Boost
+        remotePreampNode = ctx.createGain();
+        remotePreampNode.gain.value = 2.5;
+        remoteSourceNode.connect(remotePreampNode);
+
+        customerCaptureNode = ctx.createScriptProcessor(2048, 1, 1);
+        let chunkSentCount = 0;
+
+        customerCaptureNode.onaudioprocess = (e) => {
+          if (!activeCall) return; // NEVER forward ringing or early audio to Gemini!
+          if (!aiWebSocket || aiWebSocket.readyState !== WebSocket.OPEN) return;
+
+          const inputData = e.inputBuffer.getChannelData(0);
+          const pcm16 = downsampleTo16k(inputData, ctx.sampleRate);
+          if (pcm16 && pcm16.length > 0) {
+            aiWebSocket.send(pcm16.buffer);
+            chunkSentCount++;
+
+            if (chunkSentCount % 35 === 0) {
+              let peakVal = 0;
+              for (let i = 0; i < pcm16.length; i++) {
+                const abs = Math.abs(pcm16[i]);
+                if (abs > peakVal) peakVal = abs;
+              }
+              if (peakVal > 250) {
+                log(`🎙️ Customer voice stream active (Peak: ${peakVal}) → feeding Gemini AI`, 'info');
+              }
+            }
+          }
+        };
+
+        remotePreampNode.connect(customerCaptureNode);
+
+        // Keep-alive non-zero gain node (1e-5) to prevent Chromium silent culling
+        const keepAliveNode = ctx.createGain();
+        keepAliveNode.gain.setValueAtTime(0.00001, ctx.currentTime);
+        customerCaptureNode.connect(keepAliveNode);
+        keepAliveNode.connect(ctx.destination);
+
+        log('🎤 Telephony audio stream active: Customer voice connected to AI listener (2.5x clarity preamp).', 'success');
+      } catch (err) {
+        log(`Error piping audio to AI: ${err.message}`, 'error');
+      }
+    }
+
+    // Play Gemini Live PCM chunks directly into customer's phone call (aiMediaDest) & speakers
+    function playGeminiPcm(arrayBuffer) {
+      try {
+        const ctx = getAudioCtx();
+        const int16 = new Int16Array(arrayBuffer);
+        const float32 = new Float32Array(int16.length);
+
+        for (let i = 0; i < int16.length; i++) {
+          float32[i] = int16[i] / 32768.0;
+        }
+
+        const audioBuffer = ctx.createBuffer(1, float32.length, 16000);
+        audioBuffer.getChannelData(0).set(float32);
+
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+
+        if (aiMediaDest) {
+          source.connect(aiMediaDest);
+        }
+        source.connect(ctx.destination);
+
+        activeGeminiSources.push(source);
+        source.onended = () => {
+          const idx = activeGeminiSources.indexOf(source);
+          if (idx !== -1) activeGeminiSources.splice(idx, 1);
+        };
+
+        const currentTime = ctx.currentTime;
+        if (nextPlayTime < currentTime) {
+          nextPlayTime = currentTime;
+        }
+        source.start(nextPlayTime);
+        nextPlayTime += audioBuffer.duration;
+      } catch (err) {
+        console.error('Error playing Gemini audio:', err);
+      }
+    }
+
+    // Canvas audio wave visualizer
+    let animId = null;
+    function startVisualizer() {
+      const canvas = document.getElementById('audioVisualizer');
+      const ctx = canvas.getContext('2d');
+      const overlay = document.getElementById('visualizerOverlay');
+      overlay.style.display = 'none';
+
+      let phase = 0;
+      function draw() {
+        animId = requestAnimationFrame(draw);
+        phase += 0.05;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.beginPath();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#06B6D4';
+
+        const mid = canvas.height / 2;
+        for (let x = 0; x < canvas.width; x++) {
+          const y = mid + Math.sin(x * 0.05 + phase) * 15 * Math.sin(phase * 0.5);
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      draw();
+    }
+
+    function stopVisualizer() {
+      if (animId) cancelAnimationFrame(animId);
+      const canvas = document.getElementById('audioVisualizer');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      document.getElementById('visualizerOverlay').style.display = 'block';
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initTeleCMI();
+    });
+  </script>
+</body>
+</html>
