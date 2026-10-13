@@ -1591,7 +1591,7 @@
 
                 // 2.5x Preamp Clarity Boost for cellular telephony audio
                 remotePreampNode = ctx.createGain();
-                remotePreampNode.gain.value = 2.5;
+                remotePreampNode.gain.value = 1.0;
                 remoteSourceNode.connect(remotePreampNode);
 
                 // 1. FAN-OUT to call recording destination (pure phone caller audio saved into .webm)
@@ -1743,7 +1743,7 @@
                 // Level-balanced recording mix: scale Gemini to 0.75 so customer voice (boosted to 2.5x) is equally loud & clear
                 if (recordingDest) {
                     const geminiRecGain = ctx.createGain();
-                    geminiRecGain.gain.value = 0.75;
+                    geminiRecGain.gain.value = 1.0;
                     source.connect(geminiRecGain);
                     geminiRecGain.connect(recordingDest);
                 }
@@ -1795,6 +1795,13 @@
                             stopAllGeminiAudio();
                         } else if (data.event === 'turn_complete') {
                             log('👂 Priya (AI) finished speaking — listening for customer...', 'info');
+                        } else if (data.event === 'hangup' || data.event === 'end_call') {
+                            const reasonMsg = data.reason || 'Call completed';
+                            log('📞 AI concluded call: ' + reasonMsg + '. Hanging up gracefully...', 'info');
+                            const delayMs = data.delay_ms || 1800;
+                            setTimeout(() => {
+                                skipCurrentCall();
+                            }, delayMs);
                         } else if (data.event === 'tool_calling') {
                             log(`⚙️ Priya is looking up live info via tool: ${data.tool}...`, 'info');
                         } else if (data.text) {

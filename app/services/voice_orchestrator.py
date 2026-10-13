@@ -116,7 +116,6 @@ class VoiceOrchestrator:
         await websocket.accept()
 
         # Locate or associate session
-        # Locate or associate session
         query_params = dict(websocket.query_params)
         extracted_order = query_params.get("order_id") or query_params.get("call_id") or (call_id if call_id and not call_id.startswith("test") else None) or "WF-10928"
         extracted_phone = query_params.get("phone") or "9876543210"
@@ -221,16 +220,19 @@ class VoiceOrchestrator:
                     )
                 )
 
-                # Run bidirectional streaming tasks concurrently
+                # Run bidirectional streaming tasks and proactive silence watcher concurrently
                 stream_in_task = asyncio.create_task(
                     self._customer_to_gemini(websocket, gemini_session, audio_adapter, session, pickup_event)
                 )
                 stream_out_task = asyncio.create_task(
                     self._gemini_to_customer(websocket, gemini_session, audio_adapter, session)
                 )
+                silence_task = asyncio.create_task(
+                    self._monitor_silence(websocket, gemini_session, session, pickup_event)
+                )
 
                 done, pending = await asyncio.wait(
-                    [stream_in_task, stream_out_task],
+                    [stream_in_task, stream_out_task, silence_task],
                     return_when=asyncio.FIRST_COMPLETED
                 )
 
@@ -306,6 +308,9 @@ class VoiceOrchestrator:
         """Receive audio bytes from TeleCMI, filter background noise, and stream to Gemini Live."""
         try:
             chunks_received = 0
+            session.metadata["last_customer_speech_time"] = time.time()
+            session.metadata["silence_prompt_count"] = 0
+
             while True:
                 message = await websocket.receive()
                 if message.get("type") == "websocket.disconnect":
@@ -331,6 +336,8 @@ class VoiceOrchestrator:
                         )
                         if is_speech:
                             session.metadata["is_ai_speaking"] = False
+                            session.metadata["last_customer_speech_time"] = time.time()
+                            session.metadata["silence_prompt_count"] = 0
 
                         if chunks_received % 50 == 0:
                             logger.info(
@@ -373,6 +380,8 @@ class VoiceOrchestrator:
                                 )
                                 if is_speech:
                                     session.metadata["is_ai_speaking"] = False
+                                    session.metadata["last_customer_speech_time"] = time.time()
+                                    session.metadata["silence_prompt_count"] = 0
 
                                 if gated_pcm:
                                     await gemini_session.send_realtime_input(
@@ -441,6 +450,19 @@ class VoiceOrchestrator:
                                 except Exception:
                                     pass
 
+                                # If call conclusion was triggered, allow audio flush and then trigger hangup
+                                if session.metadata.get("call_concluded"):
+                                    reason = session.metadata.get("concluded_reason", "order_confirmed")
+                                    logger.info("gemini_turn_completed_triggering_call_hangup", call_id=session.call_id, reason=reason)
+                                    try:
+                                        await websocket.send_text(json.dumps({
+                                            "event": "hangup",
+                                            "reason": reason,
+                                            "delay_ms": 1800
+                                        }))
+                                    except Exception:
+                                        pass
+
                         # Handle tool call requests
                         tool_call = getattr(response, "tool_call", None)
                         if tool_call:
@@ -495,6 +517,117 @@ class VoiceOrchestrator:
         except Exception as e:
             logger.error("voice_orchestrator_gemini_to_customer_error", call_id=session.call_id, error=str(e))
 
+    async def _monitor_silence(
+        self,
+        websocket: WebSocket,
+        gemini_session: Any,
+        session: CallSession,
+        pickup_event: asyncio.Event
+    ):
+        """
+        Proactive Silence & Call Concluding Watcher:
+        1. If conversation has ended (e.g. order confirmed/cancelled), wait 4 seconds of silence and cleanly hang up.
+        2. If caller goes silent mid-conversation:
+           - At 12s: Gently prompts "Hello sir, kya aap mujhe sun pa rahe hain?".
+           - At 22s: Concludes "Theek hai sir, lagta hai aap busy hain ya call disconnect ho gayi hai. Have a nice day sir!" and hangs up.
+        3. If caller speaks at ANY point, all silence timers immediately reset. Call is NEVER cut prematurely.
+        """
+        try:
+            await pickup_event.wait()
+            # Wait 8s grace period after customer pickup for opening greeting to play
+            await asyncio.sleep(8.0)
+            session.metadata.setdefault("last_customer_speech_time", time.time())
+            session.metadata.setdefault("silence_prompt_count", 0)
+
+            while True:
+                await asyncio.sleep(1.0)
+                if session.status in {CallState.COMPLETED, CallState.DISCONNECTED, CallState.FAILED}:
+                    break
+
+                # Case 1: Call already concluded by Priya (e.g. end_call invoked or order verified)
+                if session.metadata.get("call_concluded"):
+                    concluded_time = session.metadata.get("concluded_time", time.time())
+                    if time.time() - concluded_time >= 3.5:
+                        reason = session.metadata.get("concluded_reason", "completed")
+                        logger.info("silence_watcher_auto_hangup_post_conclusion", call_id=session.call_id, reason=reason)
+                        try:
+                            await websocket.send_text(json.dumps({
+                                "event": "hangup",
+                                "reason": reason,
+                                "delay_ms": 500
+                            }))
+                        except Exception:
+                            pass
+                        break
+                    continue
+
+                # If AI is currently speaking, do not count silence against the caller
+                if session.metadata.get("is_ai_speaking"):
+                    session.metadata["last_customer_speech_time"] = time.time()
+                    continue
+
+                silence_duration = time.time() - session.metadata.get("last_customer_speech_time", time.time())
+                prompt_count = session.metadata.get("silence_prompt_count", 0)
+
+                # Case 2: Tier 1 Mid-call silence check (12 seconds)
+                if silence_duration >= 12.0 and prompt_count == 0:
+                    session.metadata["silence_prompt_count"] = 1
+                    session.metadata["last_customer_speech_time"] = time.time()
+                    logger.info("silence_watcher_prompting_unresponsive_caller", call_id=session.call_id, silence_sec=silence_duration)
+                    try:
+                        await gemini_session.send_client_content(
+                            turns=[
+                                types.Content(
+                                    role="user",
+                                    parts=[types.Part.from_text(
+                                        text="[The customer has been quiet for 12 seconds. In 1 short polite Hindi sentence, check if they are still on the line: 'Hello sir, kya aap meri aawaz sun pa rahe hain?']"
+                                    )]
+                                )
+                            ],
+                            turn_complete=True
+                        )
+                    except Exception as e:
+                        logger.warning("silence_tier1_prompt_error", error=str(e))
+
+                # Case 3: Tier 2 Mid-call silence check (Customer remained silent for 10s after Tier 1 prompt)
+                elif silence_duration >= 10.0 and prompt_count == 1:
+                    session.metadata["silence_prompt_count"] = 2
+                    session.metadata["call_concluded"] = True
+                    session.metadata["concluded_time"] = time.time()
+                    session.metadata["concluded_reason"] = "no_response"
+                    logger.info("silence_watcher_concluding_silent_call", call_id=session.call_id)
+                    try:
+                        await gemini_session.send_client_content(
+                            turns=[
+                                types.Content(
+                                    role="user",
+                                    parts=[types.Part.from_text(
+                                        text="[Customer is still unresponsive. Say politely: 'Theek hai sir, lagta hai aap busy hain ya call disconnect ho gayi hai. Have a nice day sir!' and invoke end_call tool.]"
+                                    )]
+                                )
+                            ],
+                            turn_complete=True
+                        )
+                    except Exception as e:
+                        logger.warning("silence_tier2_prompt_error", error=str(e))
+
+                    # Give 3.5s for Priya to speak parting message, then trigger WebRTC hangup
+                    await asyncio.sleep(3.5)
+                    try:
+                        await websocket.send_text(json.dumps({
+                            "event": "hangup",
+                            "reason": "inactivity_timeout",
+                            "delay_ms": 500
+                        }))
+                    except Exception:
+                        pass
+                    break
+
+        except (asyncio.CancelledError, WebSocketDisconnect):
+            pass
+        except Exception as e:
+            logger.error("silence_watcher_error", call_id=session.call_id, error=str(e))
+
     async def _execute_tool(
         self,
         name: str,
@@ -525,6 +658,14 @@ class VoiceOrchestrator:
             session.current_intent = "knowledge_policy"
             query = args.get("query", "")
             return await self.knowledge_tools.search_welfog_knowledge(query=str(query))
+        elif name == "end_call":
+            session.current_intent = "call_ended"
+            reason = args.get("reason", "order_confirmed")
+            session.metadata["call_concluded"] = True
+            session.metadata["concluded_time"] = time.time()
+            session.metadata["concluded_reason"] = reason
+            logger.info("gemini_tool_end_call_invoked", call_id=session.call_id, reason=reason)
+            return {"status": "success", "message": f"Call conclusion initiated: {reason}"}
         else:
             return {"status": "error", "message": f"Unknown tool: {name}"}
 

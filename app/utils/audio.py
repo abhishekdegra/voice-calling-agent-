@@ -118,11 +118,12 @@ class AudioAdapter:
         is_ai_speaking: bool = False
     ) -> tuple[bytes, bool]:
         """
-        Adaptive Voice Clarity & Speech Processing for telephony audio.
-        - Preserves all speech nuances (consonants, soft words, unvoiced sounds) without zero-dropouts.
-        - Dynamically boosts quiet telephony audio (often -24dBFS from mobile) so Gemini receives clear voice.
-        - Tracks speech activity for seamless barge-in.
-        - Returns (boosted_pcm16_bytes, is_speech).
+        Adaptive Voice Clarity & Speech Processing for telephony audio:
+        - Boosts human speech cleanly so Gemini Live receives clear, crisp audio.
+        - Attenuates telephone line hiss and room ambient noise floor to enable
+          instant (<650ms) Gemini VAD turn completion without false voice detection.
+        - Tracks human speech activity for seamless barge-in and inactivity detection.
+        - Returns (gated_pcm16_bytes, is_speech).
         """
         if not pcm16:
             return b"", False
@@ -135,20 +136,23 @@ class AudioAdapter:
         float_s = raw_samples.astype(np.float32)
         rms, peak = self.calculate_energy(raw_samples)
 
-        # Adaptive Voice Clarity Boost:
-        # Telephony cellular audio is notoriously quiet. Boost legitimate speech (peak >= 150) by up to 2.0x
-        # Avoid boosting idle line hiss (peak < 150)
-        if 150 <= peak < 16000:
-            gain = min(2.0, 18000.0 / max(peak, 1500))
+        # Dynamic Noise Floor Management & Speech Clarity:
+        if peak >= 300 and rms >= 70.0:
+            # Clear human voice: apply gentle clarity boost without clipping
+            gain = min(1.8, 16000.0 / max(peak, 2000))
             boosted_samples = np.clip(float_s * gain, -32768, 32767).astype(np.int16)
+        elif peak < 200 or rms < 55.0:
+            # Ambient telephone line hiss / room silence:
+            # Attenuate heavily so Gemini Live VAD detects clean, instant silence
+            boosted_samples = (float_s * 0.1).astype(np.int16)
         else:
             boosted_samples = raw_samples
 
-        # Speech activity detection for barge-in tracking
+        # Speech activity detection for barge-in & silence tracking
         if is_ai_speaking:
-            is_active = (rms >= 250.0 or peak >= 650)
+            is_active = (rms >= 220.0 or peak >= 600)
         else:
-            is_active = (rms >= 80.0 or peak >= 250)
+            is_active = (rms >= 75.0 or peak >= 260)
 
         if is_active:
             self._consecutive_speech_frames += 1

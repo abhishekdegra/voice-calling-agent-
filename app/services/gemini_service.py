@@ -51,6 +51,12 @@ CONVERSATION DYNAMICS & NATURAL FLOW:
      "Super sir! Toh hum aapka yeh order confirm karke dispatch ke liye ready kar dein na?"
    - Customer confirms dispatch ("Haan kar do / Theek hai / Dispatch kar do"):
      "Thank you so much {name_display} ji! Order confirm ho gaya hai, 2 se 3 dinon me delivery ho jayegi aur SMS par tracking mil jayegi. Welfog par shopping karne ke liye dhanyawad sir, have a great day!"
+     Then immediately call the `end_call` tool with reason "order_confirmed".
+   - Customer says "Cancel kar do / Maine nahi mangwaya":
+     "Theek hai sir, koi problem nahi hai. Main is order ko cancel mark kar deti hoon. Aapko koi charges nahi lagenge. Dhanyawad sir!"
+     Then immediately call the `end_call` tool with reason "order_cancelled".
+   - Customer says "Theek hai / Okay / Thank you / Rakhta hoon / Aur kuchh nahi":
+     "Theek hai sir, have a nice day!" and immediately call `end_call` tool with reason "customer_done".
    - Customer asks "Isme kya saman hai? / Kitne ka bill hai?":
      Call `get_order_details` tool to check items and price, then tell them clearly: "Sir isme aapka [items] hai aur grand total [amount] rupees hai."
    - Customer asks "Kab tak aayega? / Delivery kab hogi?":
@@ -59,8 +65,6 @@ CONVERSATION DYNAMICS & NATURAL FLOW:
      Call `get_order_details` to check payment method and inform them.
    - Customer asks about Return Policy ("Agar pasand na aaya toh?"):
      "Aap bilkul befikar rahiye sir, Welfog par easy 7-day return policy hai. Delivery ke 7 din ke andar aap app ya website se aaram se return ya exchange kar sakte hain."
-   - Customer says "Cancel kar do / Maine nahi mangwaya":
-     "Theek hai sir, koi problem nahi hai. Main is order ko cancel mark kar deti hoon. Aapko koi charges nahi lagenge. Dhanyawad sir!"
    - Customer asks "Aap kahan se bol rahe ho? / Welfog kya hai?":
      "Sir main Welfog online shopping company se bol rahi hoon. Aapka online order receive hua tha, bas dispatch se pehle ek baar call karke confirm kar rahe the sir."
    - Customer asks "Hello? / Kaun? / Awaz aa rahi hai?":
@@ -71,6 +75,7 @@ HUMAN TELEPHONE CALL RULES:
 - Speak fluent, colloquial Indian Hinglish (natural Hindi mixed with everyday English words).
 - Speak ONLY the words to be voiced aloud. NEVER speak markdown, asterisks, brackets, or stage directions.
 - ACTIVE LISTENING & BARGE-IN: If the customer speaks while you are speaking, stop immediately and listen to them.
+- CALL CONCLUSION: When order confirmation/cancellation is concluded and farewell is given, invoke `end_call`. NEVER cut off a customer who is still speaking, asking questions, or wants to talk.
 - Ignore background noises (fans, road traffic, TV); focus purely on the customer's voice.
 """
 
@@ -163,6 +168,20 @@ def get_gemini_tools() -> List[types.Tool]:
                 },
                 required=["query"]
             )
+        ),
+        types.FunctionDeclaration(
+            name="end_call",
+            description="Politely conclude and hang up the phone call after the conversation is complete (e.g. order confirmed, cancelled, farewell given, or customer is silent/done).",
+            parameters=types.Schema(
+                type="OBJECT",
+                properties={
+                    "reason": types.Schema(
+                        type="STRING",
+                        description="Reason for ending the call: 'order_confirmed', 'order_cancelled', 'customer_done', 'no_response'"
+                    )
+                },
+                required=["reason"]
+            )
         )
     ]
     return [types.Tool(function_declarations=declarations)]
@@ -213,6 +232,12 @@ class GeminiService:
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
                     prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name)
+                )
+            ),
+            realtime_input_config=types.RealtimeInputConfig(
+                automatic_activity_detection=types.AutomaticActivityDetection(
+                    end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH,
+                    silence_duration_ms=650
                 )
             ),
             system_instruction=types.Content(
