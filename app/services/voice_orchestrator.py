@@ -87,7 +87,6 @@ class VoiceOrchestrator:
         session.transition_to(CallState.CALLING)
         logger.info("initiating_telecmi_call", call_id=call_id, user_id=session.user_id)
 
-        # Build custom websocket URL including call_id param
         ws_url = f"{self.settings.telecmi_websocket_url}?call_id={call_id}"
 
         res = await self.telecmi_service.initiate_streaming_call(
@@ -115,14 +114,12 @@ class VoiceOrchestrator:
         """
         await websocket.accept()
 
-        # Locate or associate session
         query_params = dict(websocket.query_params)
         extracted_order = query_params.get("order_id") or query_params.get("call_id") or (call_id if call_id and not call_id.startswith("test") else None) or "WF-10928"
         extracted_phone = query_params.get("phone") or "9876543210"
         extracted_name = query_params.get("name") or "Customer"
         extracted_address = query_params.get("address") or query_params.get("notes") or ""
 
-        # Query database for latest customer name and delivery address notes
         from app.services.db_service import get_db_service
         try:
             db = get_db_service()
@@ -148,7 +145,6 @@ class VoiceOrchestrator:
         if call_id and call_id in self.sessions:
             session = self.sessions[call_id]
         elif self.sessions:
-            # Pick most recently created session in CALLING or RINGING state
             for s in reversed(list(self.sessions.values())):
                 if s.status in {CallState.CREATED, CallState.CALLING, CallState.RINGING}:
                     session = s
@@ -175,14 +171,12 @@ class VoiceOrchestrator:
             extra={"customer": extracted_name, "address": extracted_address}
         )
 
-        # Audio adapter for telephony (16000Hz PCM) <-> Gemini Live (16000Hz In / 24000Hz Out)
         audio_adapter = AudioAdapter(
             telecmi_sample_rate=16000,
             gemini_input_sample_rate=16000,
             gemini_output_sample_rate=24000
         )
 
-        # Verify Gemini configuration
         if not self.gemini_service.is_configured():
             logger.error("gemini_not_configured_for_stream", call_id=session.call_id)
             session.transition_to(CallState.FAILED)
@@ -209,7 +203,6 @@ class VoiceOrchestrator:
                 pickup_event = asyncio.Event()
                 session.metadata["pickup_event"] = pickup_event
 
-                # Customer pickup safety: wait until customer answers phone before speaking
                 greeting_task = asyncio.create_task(
                     self._await_pickup_and_greet(
                         gemini_session=gemini_session,
@@ -220,7 +213,6 @@ class VoiceOrchestrator:
                     )
                 )
 
-                # Run bidirectional streaming tasks and proactive silence watcher concurrently
                 stream_in_task = asyncio.create_task(
                     self._customer_to_gemini(websocket, gemini_session, audio_adapter, session, pickup_event)
                 )
@@ -240,7 +232,6 @@ class VoiceOrchestrator:
                 for task in pending:
                     task.cancel()
 
-                # Re-raise any unexpected streaming task exceptions so they are caught and logged
                 for task in done:
                     if not task.cancelled():
                         exc = task.exception()
@@ -268,19 +259,17 @@ class VoiceOrchestrator:
     ):
         """Wait for customer pickup signal before triggering Priya opening greeting."""
         try:
-            # Wait up to 60s for pickup event (triggered by TeleCMI answer event or customer audio)
             await asyncio.wait_for(pickup_event.wait(), timeout=60.0)
             session.transition_to(CallState.ANSWERED)
             logger.info("customer_answered_triggering_opening_greeting", call_id=session.call_id)
 
-            # Brief 0.4s pause so customer has phone at ear
             await asyncio.sleep(0.4)
 
             name_greeting = customer_name if customer_name != "Customer" else "Sir"
             greeting_instruction = (
                 f"Customer {name_greeting} has just answered the phone call. "
                 "Immediately speak your opening confirmation greeting in natural, warm Hindi/Hinglish without any prefix or notes. "
-                f"Say: 'Namaste {name_greeting} ji! Main Welfog se Priya baat kar rahi hoon. Sir aapka order {order_id} confirm karne ke liye call kiya hai — yeh order aap hi ne place kiya hai na?'"
+                f"Say: 'Namaste {name_greeting} ji! Main Welfog store se Priya baat kar rahi hoon. Sir aapka order {order_id} confirm karne ke liye call kiya hai — yeh order aap hi ne place kiya hai na sir?'"
             )
             await gemini_session.send_client_content(
                 turns=[
@@ -335,9 +324,18 @@ class VoiceOrchestrator:
                             is_ai_speaking=is_ai_speaking
                         )
                         if is_speech:
-                            session.metadata["is_ai_speaking"] = False
                             session.metadata["last_customer_speech_time"] = time.time()
                             session.metadata["silence_prompt_count"] = 0
+                            session.metadata["call_concluded"] = False
+                            session.metadata.pop("farewell_time", None)
+
+                            # Active barge-in: stop AI playback in browser immediately
+                            if is_ai_speaking:
+                                session.metadata["is_ai_speaking"] = False
+                                try:
+                                    await websocket.send_text(json.dumps({"event": "interrupted"}))
+                                except Exception:
+                                    pass
 
                         if chunks_received % 50 == 0:
                             logger.info(
@@ -379,9 +377,17 @@ class VoiceOrchestrator:
                                     is_ai_speaking=is_ai_speaking
                                 )
                                 if is_speech:
-                                    session.metadata["is_ai_speaking"] = False
                                     session.metadata["last_customer_speech_time"] = time.time()
                                     session.metadata["silence_prompt_count"] = 0
+                                    session.metadata["call_concluded"] = False
+                                    session.metadata.pop("farewell_time", None)
+
+                                    if is_ai_speaking:
+                                        session.metadata["is_ai_speaking"] = False
+                                        try:
+                                            await websocket.send_text(json.dumps({"event": "interrupted"}))
+                                        except Exception:
+                                            pass
 
                                 if gated_pcm:
                                     await gemini_session.send_realtime_input(
@@ -409,7 +415,6 @@ class VoiceOrchestrator:
                     async for response in gemini_session.receive():
                         server_content = getattr(response, "server_content", None)
                         if server_content:
-                            # Handle interruption signal from Gemini VAD
                             if getattr(server_content, "interrupted", False):
                                 session.metadata["is_ai_speaking"] = False
                                 logger.info("gemini_speech_interrupted_by_customer", call_id=session.call_id)
@@ -441,7 +446,6 @@ class VoiceOrchestrator:
                                         except Exception:
                                             pass
 
-                            # Handle turn completion AFTER model_turn parts are processed
                             if getattr(server_content, "turn_complete", False):
                                 session.metadata["is_ai_speaking"] = False
                                 logger.info("gemini_turn_completed_listening_to_customer", call_id=session.call_id)
@@ -450,20 +454,11 @@ class VoiceOrchestrator:
                                 except Exception:
                                     pass
 
-                                # If call conclusion was triggered, allow audio flush and then trigger hangup
+                                # If farewell was spoken or end_call invoked, start post-farewell silence watch
+                                # NEVER cut the call immediately! Line stays alive.
                                 if session.metadata.get("call_concluded"):
-                                    reason = session.metadata.get("concluded_reason", "order_confirmed")
-                                    logger.info("gemini_turn_completed_triggering_call_hangup", call_id=session.call_id, reason=reason)
-                                    try:
-                                        await websocket.send_text(json.dumps({
-                                            "event": "hangup",
-                                            "reason": reason,
-                                            "delay_ms": 1800
-                                        }))
-                                    except Exception:
-                                        pass
+                                    session.metadata["farewell_time"] = time.time()
 
-                        # Handle tool call requests
                         tool_call = getattr(response, "tool_call", None)
                         if tool_call:
                             session.metadata["is_ai_speaking"] = False
@@ -526,15 +521,16 @@ class VoiceOrchestrator:
     ):
         """
         Proactive Silence & Call Concluding Watcher:
-        1. If conversation has ended (e.g. order confirmed/cancelled), wait 4 seconds of silence and cleanly hang up.
-        2. If caller goes silent mid-conversation:
-           - At 12s: Gently prompts "Hello sir, kya aap mujhe sun pa rahe hain?".
-           - At 22s: Concludes "Theek hai sir, lagta hai aap busy hain ya call disconnect ho gayi hai. Have a nice day sir!" and hangs up.
-        3. If caller speaks at ANY point, all silence timers immediately reset. Call is NEVER cut prematurely.
+        1. If conversation has reached farewell (order confirmed/cancelled), wait for 7 FULL SECONDS
+           of true silence from the customer before disconnecting.
+        2. If customer speaks at ANY point during or after farewell, the hangup is CANCELLED immediately.
+        3. Mid-call silence:
+           - 15s silence: Priya prompts 'Hello sir, kya aap mujhe sun pa rahe hain?'
+           - 27s total silence: Priya delivers polite goodbye, waits 5s of silence, then disconnects.
         """
         try:
             await pickup_event.wait()
-            # Wait 8s grace period after customer pickup for opening greeting to play
+            # Wait 8s grace period after customer pickup for opening greeting to begin
             await asyncio.sleep(8.0)
             session.metadata.setdefault("last_customer_speech_time", time.time())
             session.metadata.setdefault("silence_prompt_count", 0)
@@ -544,12 +540,15 @@ class VoiceOrchestrator:
                 if session.status in {CallState.COMPLETED, CallState.DISCONNECTED, CallState.FAILED}:
                     break
 
-                # Case 1: Call already concluded by Priya (e.g. end_call invoked or order verified)
-                if session.metadata.get("call_concluded"):
-                    concluded_time = session.metadata.get("concluded_time", time.time())
-                    if time.time() - concluded_time >= 3.5:
+                # Post-farewell silence check:
+                # Disconnect ONLY IF customer has stayed completely silent for 7 seconds after farewell!
+                if session.metadata.get("call_concluded") and session.metadata.get("farewell_time"):
+                    farewell_t = session.metadata["farewell_time"]
+                    last_speech = session.metadata.get("last_customer_speech_time", farewell_t)
+                    silence_since_farewell = time.time() - max(farewell_t, last_speech)
+                    if silence_since_farewell >= 7.0:
                         reason = session.metadata.get("concluded_reason", "completed")
-                        logger.info("silence_watcher_auto_hangup_post_conclusion", call_id=session.call_id, reason=reason)
+                        logger.info("silence_watcher_concluding_after_7s_farewell_silence", call_id=session.call_id, reason=reason)
                         try:
                             await websocket.send_text(json.dumps({
                                 "event": "hangup",
@@ -561,7 +560,7 @@ class VoiceOrchestrator:
                         break
                     continue
 
-                # If AI is currently speaking, do not count silence against the caller
+                # If AI is currently speaking, do not count silence against caller
                 if session.metadata.get("is_ai_speaking"):
                     session.metadata["last_customer_speech_time"] = time.time()
                     continue
@@ -569,8 +568,8 @@ class VoiceOrchestrator:
                 silence_duration = time.time() - session.metadata.get("last_customer_speech_time", time.time())
                 prompt_count = session.metadata.get("silence_prompt_count", 0)
 
-                # Case 2: Tier 1 Mid-call silence check (12 seconds)
-                if silence_duration >= 12.0 and prompt_count == 0:
+                # Tier 1 Mid-call silence check (15 seconds of dead silence)
+                if silence_duration >= 15.0 and prompt_count == 0:
                     session.metadata["silence_prompt_count"] = 1
                     session.metadata["last_customer_speech_time"] = time.time()
                     logger.info("silence_watcher_prompting_unresponsive_caller", call_id=session.call_id, silence_sec=silence_duration)
@@ -580,7 +579,7 @@ class VoiceOrchestrator:
                                 types.Content(
                                     role="user",
                                     parts=[types.Part.from_text(
-                                        text="[The customer has been quiet for 12 seconds. In 1 short polite Hindi sentence, check if they are still on the line: 'Hello sir, kya aap meri aawaz sun pa rahe hain?']"
+                                        text="[The customer has been silent for 15 seconds. In 1 short polite Hindi sentence, check if they can hear you: 'Hello sir, kya aap mujhe sun pa rahe hain?']"
                                     )]
                                 )
                             ],
@@ -589,8 +588,8 @@ class VoiceOrchestrator:
                     except Exception as e:
                         logger.warning("silence_tier1_prompt_error", error=str(e))
 
-                # Case 3: Tier 2 Mid-call silence check (Customer remained silent for 10s after Tier 1 prompt)
-                elif silence_duration >= 10.0 and prompt_count == 1:
+                # Tier 2 Mid-call silence check (Customer remained silent for 12s after Tier 1 prompt)
+                elif silence_duration >= 12.0 and prompt_count == 1:
                     session.metadata["silence_prompt_count"] = 2
                     session.metadata["call_concluded"] = True
                     session.metadata["concluded_time"] = time.time()
@@ -602,7 +601,7 @@ class VoiceOrchestrator:
                                 types.Content(
                                     role="user",
                                     parts=[types.Part.from_text(
-                                        text="[Customer is still unresponsive. Say politely: 'Theek hai sir, lagta hai aap busy hain ya call disconnect ho gayi hai. Have a nice day sir!' and invoke end_call tool.]"
+                                        text="[Customer is still unresponsive. Say politely: 'Theek hai sir, lagta hai aap busy hain ya call disconnect ho gayi hai. Have a nice day sir!' and conclude.]"
                                     )]
                                 )
                             ],
@@ -611,17 +610,8 @@ class VoiceOrchestrator:
                     except Exception as e:
                         logger.warning("silence_tier2_prompt_error", error=str(e))
 
-                    # Give 3.5s for Priya to speak parting message, then trigger WebRTC hangup
-                    await asyncio.sleep(3.5)
-                    try:
-                        await websocket.send_text(json.dumps({
-                            "event": "hangup",
-                            "reason": "inactivity_timeout",
-                            "delay_ms": 500
-                        }))
-                    except Exception:
-                        pass
-                    break
+                    # Set farewell_time to now, allowing 6s silence watch before cutting
+                    session.metadata["farewell_time"] = time.time()
 
         except (asyncio.CancelledError, WebSocketDisconnect):
             pass
@@ -665,7 +655,7 @@ class VoiceOrchestrator:
             session.metadata["concluded_time"] = time.time()
             session.metadata["concluded_reason"] = reason
             logger.info("gemini_tool_end_call_invoked", call_id=session.call_id, reason=reason)
-            return {"status": "success", "message": f"Call conclusion initiated: {reason}"}
+            return {"status": "success", "message": f"Farewell recorded: {reason}. Watching for customer response before closing."}
         else:
             return {"status": "error", "message": f"Unknown tool: {name}"}
 

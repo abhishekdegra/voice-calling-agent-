@@ -30,7 +30,6 @@ class AudioAdapter:
     @staticmethod
     def mulaw_to_pcm16(mulaw_bytes: bytes) -> bytes:
         """Convert G.711 mu-law bytes to 16-bit signed linear PCM bytes."""
-        # Standard G.711 u-law expansion table
         lut = AudioAdapter._get_mulaw_expansion_table()
         pcm_samples = [lut[b] for b in mulaw_bytes]
         return struct.pack(f"<{len(pcm_samples)}h", *pcm_samples)
@@ -43,7 +42,6 @@ class AudioAdapter:
         lut = AudioAdapter._get_pcm_to_mulaw_table()
         out = bytearray(len(samples))
         for i, s in enumerate(samples):
-            # Clamp to 16-bit range
             clamped = max(-32768, min(32767, s))
             out[i] = lut[(clamped + 32768) >> 2]
         return bytes(out)
@@ -54,20 +52,17 @@ class AudioAdapter:
         if in_rate == out_rate or not pcm_bytes:
             return pcm_bytes
 
-        # Convert to numpy int16 array
         num_samples = len(pcm_bytes) // 2
         if num_samples == 0:
             return b""
 
         samples = np.frombuffer(pcm_bytes, dtype=np.int16)
         
-        # Calculate target sample count
         duration = len(samples) / in_rate
         target_len = int(round(duration * out_rate))
         if target_len == 0:
             return b""
 
-        # Linear interpolation
         old_indices = np.linspace(0, len(samples) - 1, num=len(samples))
         new_indices = np.linspace(0, len(samples) - 1, num=target_len)
         resampled = np.interp(new_indices, old_indices, samples).astype(np.int16)
@@ -120,10 +115,9 @@ class AudioAdapter:
         """
         Adaptive Voice Clarity & Speech Processing for telephony audio:
         - Boosts human speech cleanly so Gemini Live receives clear, crisp audio.
-        - Attenuates telephone line hiss and room ambient noise floor to enable
-          instant (<650ms) Gemini VAD turn completion without false voice detection.
-        - Tracks human speech activity for seamless barge-in and inactivity detection.
-        - Returns (gated_pcm16_bytes, is_speech).
+        - Preserves soft words like 'haan', 'ji', 'theek hai' without clipping or gating.
+        - Enables natural barge-in when customer speaks while AI is talking.
+        - Returns (clean_pcm16_bytes, is_speech).
         """
         if not pcm16:
             return b"", False
@@ -136,23 +130,23 @@ class AudioAdapter:
         float_s = raw_samples.astype(np.float32)
         rms, peak = self.calculate_energy(raw_samples)
 
-        # Dynamic Noise Floor Management & Speech Clarity:
-        if peak >= 300 and rms >= 70.0:
+        # Dynamic Speech Clarity & Line Hiss Filter:
+        if peak >= 180 and rms >= 40.0:
             # Clear human voice: apply gentle clarity boost without clipping
-            gain = min(1.8, 16000.0 / max(peak, 2000))
+            gain = min(1.6, 16000.0 / max(peak, 2200))
             boosted_samples = np.clip(float_s * gain, -32768, 32767).astype(np.int16)
-        elif peak < 200 or rms < 55.0:
-            # Ambient telephone line hiss / room silence:
-            # Attenuate heavily so Gemini Live VAD detects clean, instant silence
-            boosted_samples = (float_s * 0.1).astype(np.int16)
+        elif peak < 85 and rms < 22.0:
+            # Pure idle telephone line hiss: gentle attenuation to assist VAD turn detection
+            boosted_samples = (float_s * 0.35).astype(np.int16)
         else:
+            # Soft conversational voice (including quiet 'haan', 'ji', 'hlo'): pass completely untouched!
             boosted_samples = raw_samples
 
-        # Speech activity detection for barge-in & silence tracking
+        # Speech activity detection for barge-in & silence tracking:
         if is_ai_speaking:
-            is_active = (rms >= 220.0 or peak >= 600)
+            is_active = (peak >= 280 and rms >= 160.0)
         else:
-            is_active = (rms >= 75.0 or peak >= 260)
+            is_active = (peak >= 140 or rms >= 36.0)
 
         if is_active:
             self._consecutive_speech_frames += 1
@@ -202,7 +196,6 @@ class AudioAdapter:
     @staticmethod
     def _get_pcm_to_mulaw_table():
         if not hasattr(AudioAdapter, "_pcm_to_mulaw_table"):
-            # Lookup table for fast 16-bit downsample
             table = bytearray(16384)
             for i in range(16384):
                 pcm = (i << 2) - 32768

@@ -1589,9 +1589,9 @@
                 // Single MediaStreamSourceNode for the remote phone stream
                 remoteSourceNode = ctx.createMediaStreamSource(remoteStream);
 
-                // 2.5x Preamp Clarity Boost for cellular telephony audio
+                // 1.5x Preamp Clarity Boost for cellular telephony audio
                 remotePreampNode = ctx.createGain();
-                remotePreampNode.gain.value = 1.0;
+                remotePreampNode.gain.value = 1.5;
                 remoteSourceNode.connect(remotePreampNode);
 
                 // 1. FAN-OUT to call recording destination (pure phone caller audio saved into .webm)
