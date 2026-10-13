@@ -267,9 +267,10 @@ class VoiceOrchestrator:
 
             name_greeting = customer_name if customer_name != "Customer" else "Sir"
             greeting_instruction = (
-                f"Customer {name_greeting} has just answered the phone call. "
-                "Immediately speak your opening confirmation greeting in natural, warm Hindi/Hinglish without any prefix or notes. "
-                f"Say: 'Namaste {name_greeting} ji! Main Welfog store se Priya baat kar rahi hoon. Sir aapka order {order_id} confirm karne ke liye call kiya hai — yeh order aap hi ne place kiya hai na sir?'"
+                f"Customer {name_greeting} has just answered the call. "
+                f"Introduce yourself warmly and naturally as Priya from Welfog store regarding order {order_id}. "
+                "Greet them politely and ask naturally if they placed this order and if everything is good for delivery confirmation. "
+                "Keep it short (1 to 2 spoken sentences), warm, and human-like. Do not read rigid scripts or output markdown."
             )
             await gemini_session.send_client_content(
                 turns=[
@@ -329,14 +330,6 @@ class VoiceOrchestrator:
                             session.metadata["call_concluded"] = False
                             session.metadata.pop("farewell_time", None)
 
-                            # Active barge-in: stop AI playback in browser immediately
-                            if is_ai_speaking:
-                                session.metadata["is_ai_speaking"] = False
-                                try:
-                                    await websocket.send_text(json.dumps({"event": "interrupted"}))
-                                except Exception:
-                                    pass
-
                         if chunks_received % 50 == 0:
                             logger.info(
                                 "forwarding_customer_audio_to_gemini",
@@ -381,13 +374,6 @@ class VoiceOrchestrator:
                                     session.metadata["silence_prompt_count"] = 0
                                     session.metadata["call_concluded"] = False
                                     session.metadata.pop("farewell_time", None)
-
-                                    if is_ai_speaking:
-                                        session.metadata["is_ai_speaking"] = False
-                                        try:
-                                            await websocket.send_text(json.dumps({"event": "interrupted"}))
-                                        except Exception:
-                                            pass
 
                                 if gated_pcm:
                                     await gemini_session.send_realtime_input(

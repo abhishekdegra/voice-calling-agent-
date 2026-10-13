@@ -891,10 +891,13 @@
         source.onended = () => {
           const idx = activeGeminiSources.indexOf(source);
           if (idx !== -1) activeGeminiSources.splice(idx, 1);
+          if (activeGeminiSources.length === 0) {
+            nextPlayTime = ctx.currentTime;
+          }
         };
 
         const currentTime = ctx.currentTime;
-        if (nextPlayTime < currentTime) {
+        if (nextPlayTime < currentTime || (nextPlayTime - currentTime) > 0.15) {
           nextPlayTime = currentTime;
         }
         source.start(nextPlayTime);

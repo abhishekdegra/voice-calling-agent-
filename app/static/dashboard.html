@@ -1752,11 +1752,14 @@
                 source.onended = () => {
                     const idx = activeGeminiSources.indexOf(source);
                     if (idx !== -1) activeGeminiSources.splice(idx, 1);
+                    if (activeGeminiSources.length === 0) {
+                        nextPlayTime = ctx.currentTime;
+                    }
                 };
 
-                // Strict consecutive playback queue (NEVER play chunks concurrently on top of each other!)
+                // Strict consecutive playback queue with zero turn drift
                 const currentTime = ctx.currentTime;
-                if (nextPlayTime < currentTime) {
+                if (nextPlayTime < currentTime || (nextPlayTime - currentTime) > 0.15) {
                     nextPlayTime = currentTime;
                 }
                 source.start(nextPlayTime);

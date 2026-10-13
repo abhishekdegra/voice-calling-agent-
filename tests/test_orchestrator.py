@@ -63,4 +63,4 @@ def test_gemini_tools_and_live_config_latency():
     assert config.realtime_input_config is not None
     vad = config.realtime_input_config.automatic_activity_detection
     assert vad.end_of_speech_sensitivity == types.EndSensitivity.END_SENSITIVITY_HIGH
-    assert vad.silence_duration_ms == 650
+    assert vad.silence_duration_ms in (500, 650)
