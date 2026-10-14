@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # 1. Gemini Configuration
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_live_model: str = Field(default="models/gemini-2.5-flash-native-audio-latest", alias="GEMINI_LIVE_MODEL")
+    gemini_live_model: str = Field(default="models/gemini-3.1-flash-live-preview", alias="GEMINI_LIVE_MODEL")
     gemini_voice_name: str = Field(default="Aoede", alias="GEMINI_VOICE_NAME")
 
     # 2. TeleCMI / PIOPIY Configuration

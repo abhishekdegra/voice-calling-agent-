@@ -749,6 +749,20 @@
     }
 
     function connectAiWebSocket() {
+      // Prevent duplicate sessions
+      if (aiWebSocket && (aiWebSocket.readyState === WebSocket.OPEN || aiWebSocket.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      if (aiWebSocket) {
+        try {
+          aiWebSocket.onopen = null;
+          aiWebSocket.onmessage = null;
+          aiWebSocket.onerror = null;
+          aiWebSocket.onclose = null;
+          aiWebSocket.close();
+        } catch(e) {}
+        aiWebSocket = null;
+      }
       log('🤖 Bridging Gemini Live AI to phone audio...', 'ai');
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const orderId = encodeURIComponent(document.getElementById('orderId').value.trim());
@@ -896,8 +910,9 @@
           }
         };
 
+        // Sequential chunk playback: play each chunk strictly after the previous chunk completes
         const currentTime = ctx.currentTime;
-        if (nextPlayTime < currentTime || (nextPlayTime - currentTime) > 0.15) {
+        if (nextPlayTime < currentTime) {
           nextPlayTime = currentTime;
         }
         source.start(nextPlayTime);

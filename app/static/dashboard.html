@@ -1589,9 +1589,9 @@
                 // Single MediaStreamSourceNode for the remote phone stream
                 remoteSourceNode = ctx.createMediaStreamSource(remoteStream);
 
-                // 1.5x Preamp Clarity Boost for cellular telephony audio
+                // Optimal 2.8x Preamp Gain for crystal-clear cellular audio into recording and AI listener
                 remotePreampNode = ctx.createGain();
-                remotePreampNode.gain.value = 1.5;
+                remotePreampNode.gain.value = 2.8;
                 remoteSourceNode.connect(remotePreampNode);
 
                 // 1. FAN-OUT to call recording destination (pure phone caller audio saved into .webm)
@@ -1757,9 +1757,9 @@
                     }
                 };
 
-                // Strict consecutive playback queue with zero turn drift
+                // Sequential chunk playback: play each chunk strictly after the previous chunk completes
                 const currentTime = ctx.currentTime;
-                if (nextPlayTime < currentTime || (nextPlayTime - currentTime) > 0.15) {
+                if (nextPlayTime < currentTime) {
                     nextPlayTime = currentTime;
                 }
                 source.start(nextPlayTime);
@@ -1769,6 +1769,20 @@
 
         function connectAiWebSocket() {
             if (!currentCustomer) return;
+            // Prevent duplicate sessions: if already connected or connecting, do not open another
+            if (aiWebSocket && (aiWebSocket.readyState === WebSocket.OPEN || aiWebSocket.readyState === WebSocket.CONNECTING)) {
+                return;
+            }
+            if (aiWebSocket) {
+                try {
+                    aiWebSocket.onopen = null;
+                    aiWebSocket.onmessage = null;
+                    aiWebSocket.onerror = null;
+                    aiWebSocket.onclose = null;
+                    aiWebSocket.close();
+                } catch (e) { }
+                aiWebSocket = null;
+            }
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const orderId = encodeURIComponent(currentCustomer.order_id || 'WF-10928');
             const phone = encodeURIComponent(currentCustomer.phone);

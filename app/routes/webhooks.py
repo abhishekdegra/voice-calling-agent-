@@ -34,6 +34,9 @@ async def handle_telecmi_event(request: Request) -> Dict[str, Any]:
         session = orch.sessions[call_id]
         if event in {"answered", "connected"}:
             session.transition_to(CallState.ANSWERED)
+            pickup_evt = session.metadata.get("pickup_event")
+            if pickup_evt and not pickup_evt.is_set():
+                pickup_evt.set()
         elif event in {"ringing"}:
             session.transition_to(CallState.RINGING)
         elif event in {"busy"}:

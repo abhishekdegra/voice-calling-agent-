@@ -115,7 +115,8 @@ class AudioAdapter:
         """
         Adaptive Voice Clarity & Speech Processing for telephony audio:
         - Boosts human speech cleanly so Gemini Live receives clear, crisp audio.
-        - Preserves soft words like 'haan', 'ji', 'theek hai' without clipping or gating.
+        - Preserves soft words like 'haan', 'ji', 'theek hai' without clipping, distortion, or destructive zero-gating.
+        - Preserves natural continuous room acoustic tone so Gemini's neural VAD operates with full accuracy.
         - Enables natural barge-in when customer speaks while AI is talking.
         - Returns (clean_pcm16_bytes, is_speech).
         """
@@ -127,26 +128,25 @@ class AudioAdapter:
             return b"", False
 
         raw_samples = np.frombuffer(pcm16, dtype=np.int16)
-        float_s = raw_samples.astype(np.float32)
-        rms, peak = self.calculate_energy(raw_samples)
+        cleaned_samples = self.remove_dc_offset(raw_samples)
+        float_s = cleaned_samples.astype(np.float32)
+        rms, peak = self.calculate_energy(cleaned_samples)
 
-        # Dynamic Speech Clarity & Line Hiss Filter:
-        if peak >= 180 and rms >= 40.0:
-            # Clear human voice: apply gentle clarity boost without clipping
-            gain = min(1.6, 16000.0 / max(peak, 2200))
-            boosted_samples = np.clip(float_s * gain, -32768, 32767).astype(np.int16)
-        elif peak < 85 and rms < 22.0:
-            # Pure idle telephone line hiss: gentle attenuation to assist VAD turn detection
-            boosted_samples = (float_s * 0.35).astype(np.int16)
+        # Telephony Voice AGC (Automatic Gain Control):
+        # Dynamically scales cellular phone speech up to clear telephony levels (Peak ~16000-22000)
+        # without clipping or distorting soft affirmations ('haan', 'ji', 'theek hai').
+        if peak >= 140 and rms >= 24.0:
+            target_gain = min(4.5, max(1.2, 18000.0 / max(peak, 1600)))
+            boosted_samples = np.clip(float_s * target_gain, -32768, 32767).astype(np.int16)
         else:
-            # Soft conversational voice (including quiet 'haan', 'ji', 'hlo'): pass completely untouched!
-            boosted_samples = raw_samples
+            # Ambient room tone and breath trails pass untouched
+            boosted_samples = cleaned_samples
 
-        # Speech activity detection for barge-in & silence tracking:
+        # Accurate speech activity detection (distinguishes real voice from background hiss):
         if is_ai_speaking:
-            is_active = (peak >= 280 and rms >= 160.0)
+            is_active = (peak >= 350 and rms >= 130.0)
         else:
-            is_active = (peak >= 140 or rms >= 36.0)
+            is_active = (peak >= 200 and rms >= 32.0)
 
         if is_active:
             self._consecutive_speech_frames += 1
