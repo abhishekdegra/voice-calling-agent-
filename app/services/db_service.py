@@ -9,6 +9,7 @@ from pymysql.cursors import DictCursor
 
 from app.config import get_settings
 from app.utils.logging import logger
+from app.utils.pii_masking import mask_sensitive_pii
 
 PASSWORD_SALT = "welfog_salt_2026"
 
@@ -28,19 +29,165 @@ class DatabaseService:
         self.user = self.settings.db_user or "root"
         self.password = self.settings.db_password or ""
         self.database = self.settings.db_name or "welfog_ai"
+        self._schema_checked = False
+        self._ensure_database_and_tables()
+
+    def _ensure_database_and_tables(self):
+        """Self-healing: Creates welfog_ai database and all required tables if missing or dropped."""
+        try:
+            # Connect to MySQL server directly without database selected
+            server_conn = pymysql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                cursorclass=DictCursor,
+                autocommit=True,
+                charset="utf8mb4"
+            )
+            with server_conn.cursor() as cur:
+                # 1. Ensure Database Exists
+                cur.execute(f"CREATE DATABASE IF NOT EXISTS `{self.database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+                cur.execute(f"USE `{self.database}`;")
+
+                # 2. Table: admins
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS admins (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(100) UNIQUE NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                """)
+
+                # 3. Table: customers
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS customers (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(150) NOT NULL DEFAULT 'Customer',
+                    phone VARCHAR(20) NOT NULL,
+                    order_id VARCHAR(50) DEFAULT 'WF-10928',
+                    product_name VARCHAR(255) DEFAULT 'Welfog Premium Item',
+                    product_price VARCHAR(50) DEFAULT '₹999',
+                    delivery_time VARCHAR(100) DEFAULT '2-3 Business Days',
+                    payment_method VARCHAR(50) DEFAULT 'Cash on Delivery (COD)',
+                    notes TEXT,
+                    status VARCHAR(30) DEFAULT 'PENDING',
+                    call_duration INT DEFAULT 0,
+                    call_summary TEXT,
+                    transcript LONGTEXT,
+                    recording_url VARCHAR(500) DEFAULT NULL,
+                    last_called_at DATETIME DEFAULT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_status (status),
+                    INDEX idx_phone (phone),
+                    INDEX idx_order (order_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                """)
+
+                # 4. Table: call_logs
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS call_logs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    customer_id INT DEFAULT NULL,
+                    phone VARCHAR(20) NOT NULL,
+                    customer_name VARCHAR(150) DEFAULT 'Customer',
+                    order_id VARCHAR(50) DEFAULT 'WF-10928',
+                    status VARCHAR(30) NOT NULL,
+                    duration INT DEFAULT 0,
+                    summary TEXT,
+                    transcript LONGTEXT,
+                    recording_url VARCHAR(500) DEFAULT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_call_phone (phone),
+                    INDEX idx_call_status (status)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                """)
+
+                # 5. Ensure Default Admin
+                admin_hash = hash_password("admin@123")
+                cur.execute("""
+                INSERT INTO admins (username, password_hash)
+                VALUES ('admin', %s)
+                ON DUPLICATE KEY UPDATE password_hash = %s;
+                """, (admin_hash, admin_hash))
+
+                # 6. Check missing columns in customers if table existed previously
+                cur.execute("SHOW COLUMNS FROM customers")
+                existing = {col['Field'] for col in cur.fetchall()}
+                for col_name, col_def in [
+                    ('product_name', 'VARCHAR(255) DEFAULT NULL'),
+                    ('product_price', 'VARCHAR(50) DEFAULT NULL'),
+                    ('delivery_time', 'VARCHAR(100) DEFAULT NULL'),
+                    ('payment_method', 'VARCHAR(50) DEFAULT NULL'),
+                    ('qa_score', 'DECIMAL(3,1) DEFAULT NULL'),
+                    ('customer_sentiment', "VARCHAR(50) DEFAULT NULL"),
+                    ('rto_risk', "VARCHAR(50) DEFAULT NULL"),
+                    ('qa_notes', 'TEXT DEFAULT NULL')
+                ]:
+                    if col_name not in existing:
+                        cur.execute(f"ALTER TABLE customers ADD COLUMN {col_name} {col_def}")
+
+                # Check missing columns in call_logs
+                cur.execute("SHOW COLUMNS FROM call_logs")
+                existing_logs = {col['Field'] for col in cur.fetchall()}
+                for col_name, col_def in [
+                    ('qa_score', 'DECIMAL(3,1) DEFAULT NULL'),
+                    ('customer_sentiment', "VARCHAR(50) DEFAULT NULL"),
+                    ('rto_risk', "VARCHAR(50) DEFAULT NULL"),
+                    ('qa_notes', 'TEXT DEFAULT NULL')
+                ]:
+                    if col_name not in existing_logs:
+                        cur.execute(f"ALTER TABLE call_logs ADD COLUMN {col_name} {col_def}")
+
+                # 7. Seed initial sample records if customer table is brand new/empty
+                cur.execute("SELECT COUNT(*) AS cnt FROM customers")
+                if cur.fetchone()["cnt"] == 0:
+                    seed_data = [
+                        ('Sidharth Sharma', '9828628181', 'WF-10928', 'Noise-Cancelling Wireless Headphones', '₹1,499', 'Tomorrow by 4 PM', 'Cash on Delivery (COD)', 'Plot 42, Near Metro Station, Mansarovar, Jaipur (302020)', 'PENDING'),
+                        ('Abhishek Degra', '9521399708', 'WF-10929', 'Smart Fitness Watch Series 5', '₹2,299', 'In 2 Days', 'Prepaid (UPI)', 'House No 12, Malviya Nagar, Sector 4, Jaipur (302017)', 'PENDING'),
+                        ('Lokesh Choudhary', '9358991311', 'WF-10930', 'Fast Charging Power Bank 20000mAh', '₹999', 'Tomorrow by 1 PM', 'Cash on Delivery (COD)', 'Vijay Lal Degra ki Dhani, Sinwar, Jaipur', 'PENDING')
+                    ]
+                    cur.executemany("""
+                    INSERT INTO customers (name, phone, order_id, product_name, product_price, delivery_time, payment_method, notes, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, seed_data)
+
+            server_conn.close()
+            self._schema_checked = True
+        except Exception as e:
+            logger.error("db_ensure_database_and_tables_error", error=str(e))
 
     def _get_connection(self):
-        """Create a new MySQL connection with DictCursor."""
-        return pymysql.connect(
-            host=self.host,
-            port=self.port,
-            user=self.user,
-            password=self.password,
-            database=self.database,
-            cursorclass=DictCursor,
-            autocommit=True,
-            charset="utf8mb4"
-        )
+        """Create a new MySQL connection with DictCursor and self-healing resilience."""
+        try:
+            return pymysql.connect(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                password=self.password,
+                database=self.database,
+                cursorclass=DictCursor,
+                autocommit=True,
+                charset="utf8mb4"
+            )
+        except pymysql.err.OperationalError as e:
+            # If database does not exist (1049) or table issue (1146), auto-heal and retry!
+            if len(e.args) > 0 and e.args[0] in (1049, 1146):
+                logger.info("db_auto_healing_triggered", reason=str(e))
+                self._ensure_database_and_tables()
+                return pymysql.connect(
+                    host=self.host,
+                    port=self.port,
+                    user=self.user,
+                    password=self.password,
+                    database=self.database,
+                    cursorclass=DictCursor,
+                    autocommit=True,
+                    charset="utf8mb4"
+                )
+            raise
 
     async def verify_admin(self, username: str, password: str) -> bool:
         """Verify admin login credentials against MySQL database."""
@@ -151,11 +298,14 @@ class DatabaseService:
         name: str,
         phone: str,
         order_id: Optional[str] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        product_name: Optional[str] = None,
+        product_price: Optional[str] = None,
+        delivery_time: Optional[str] = None,
+        payment_method: Optional[str] = None
     ) -> int:
-        """Insert a single customer into queue."""
+        """Insert a single customer into queue with rich order context."""
         def _insert():
-            # Standardize 10 digit Indian number
             cleaned_phone = "".join(c for c in phone if c.isdigit())
             if len(cleaned_phone) == 12 and cleaned_phone.startswith("91"):
                 cleaned_phone = cleaned_phone[2:]
@@ -165,10 +315,22 @@ class DatabaseService:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        INSERT INTO customers (name, phone, order_id, notes, status)
-                        VALUES (%s, %s, %s, %s, 'PENDING')
+                        INSERT INTO customers (
+                            name, phone, order_id, notes, status,
+                            product_name, product_price, delivery_time, payment_method
+                        )
+                        VALUES (%s, %s, %s, %s, 'PENDING', %s, %s, %s, %s)
                         """,
-                        (name.strip() or "Customer", cleaned_phone, (order_id or "WF-10928").strip(), notes or "")
+                        (
+                            name.strip() or "Customer",
+                            cleaned_phone,
+                            (order_id or "WF-10928").strip(),
+                            notes or "",
+                            product_name.strip() if product_name else "Welfog Premium Item",
+                            product_price.strip() if product_price else "₹999",
+                            delivery_time.strip() if delivery_time else "2-3 Business Days",
+                            payment_method.strip() if payment_method else "Cash on Delivery (COD)"
+                        )
                     )
                     return cur.lastrowid
             finally:
@@ -177,7 +339,7 @@ class DatabaseService:
         return await asyncio.to_thread(_insert)
 
     async def bulk_add_customers(self, entries: List[Dict[str, str]]) -> int:
-        """Bulk insert customers from list of dicts."""
+        """Bulk insert customers from list of dicts with optional order metadata."""
         def _bulk_insert():
             conn = self._get_connection()
             try:
@@ -193,14 +355,21 @@ class DatabaseService:
 
                         cur.execute(
                             """
-                            INSERT INTO customers (name, phone, order_id, notes, status)
-                            VALUES (%s, %s, %s, %s, 'PENDING')
+                            INSERT INTO customers (
+                                name, phone, order_id, notes, status,
+                                product_name, product_price, delivery_time, payment_method
+                            )
+                            VALUES (%s, %s, %s, %s, 'PENDING', %s, %s, %s, %s)
                             """,
                             (
                                 item.get("name", "Customer").strip() or "Customer",
                                 cleaned,
                                 item.get("order_id", "WF-10928").strip() or "WF-10928",
-                                item.get("notes", "Bulk Onboarded")
+                                item.get("notes", "Bulk Onboarded"),
+                                item.get("product_name") or "Welfog Premium Item",
+                                item.get("product_price") or "₹999",
+                                item.get("delivery_time") or "2-3 Business Days",
+                                item.get("payment_method") or "Cash on Delivery (COD)"
                             )
                         )
                         count += 1
@@ -216,9 +385,13 @@ class DatabaseService:
         name: str,
         phone: str,
         order_id: Optional[str] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        product_name: Optional[str] = None,
+        product_price: Optional[str] = None,
+        delivery_time: Optional[str] = None,
+        payment_method: Optional[str] = None
     ) -> bool:
-        """Edit customer info."""
+        """Edit customer info and order metadata."""
         def _edit():
             conn = self._get_connection()
             try:
@@ -229,10 +402,24 @@ class DatabaseService:
                     cur.execute(
                         """
                         UPDATE customers 
-                        SET name = %s, phone = %s, order_id = %s, notes = %s 
+                        SET name = %s, phone = %s, order_id = %s, notes = %s,
+                            product_name = COALESCE(%s, product_name),
+                            product_price = COALESCE(%s, product_price),
+                            delivery_time = COALESCE(%s, delivery_time),
+                            payment_method = COALESCE(%s, payment_method)
                         WHERE id = %s
                         """,
-                        (name.strip(), cleaned, order_id.strip() if order_id else "WF-10928", notes or "", customer_id)
+                        (
+                            name.strip(),
+                            cleaned,
+                            order_id.strip() if order_id else "WF-10928",
+                            notes or "",
+                            product_name,
+                            product_price,
+                            delivery_time,
+                            payment_method,
+                            customer_id
+                        )
                     )
                     return True
             finally:
@@ -247,9 +434,13 @@ class DatabaseService:
         call_duration: Optional[int] = None,
         call_summary: Optional[str] = None,
         transcript: Optional[str] = None,
-        recording_url: Optional[str] = None
+        recording_url: Optional[str] = None,
+        qa_score: Optional[float] = None,
+        customer_sentiment: Optional[str] = None,
+        rto_risk: Optional[str] = None,
+        qa_notes: Optional[str] = None
     ) -> bool:
-        """Update customer call status and record notes/transcript/recording."""
+        """Update customer call status and record notes/transcript/recording/QA scores."""
         def _update():
             conn = self._get_connection()
             try:
@@ -263,15 +454,31 @@ class DatabaseService:
 
                     if call_summary is not None:
                         updates.append("call_summary = %s")
-                        params.append(call_summary)
+                        params.append(mask_sensitive_pii(call_summary))
 
                     if transcript is not None:
                         updates.append("transcript = %s")
-                        params.append(transcript)
+                        params.append(mask_sensitive_pii(transcript))
 
                     if recording_url is not None:
                         updates.append("recording_url = %s")
                         params.append(recording_url)
+
+                    if qa_score is not None:
+                        updates.append("qa_score = %s")
+                        params.append(qa_score)
+
+                    if customer_sentiment is not None:
+                        updates.append("customer_sentiment = %s")
+                        params.append(customer_sentiment.upper())
+
+                    if rto_risk is not None:
+                        updates.append("rto_risk = %s")
+                        params.append(rto_risk.upper())
+
+                    if qa_notes is not None:
+                        updates.append("qa_notes = %s")
+                        params.append(mask_sensitive_pii(qa_notes))
 
                     params.append(customer_id)
                     cur.execute(
@@ -353,19 +560,35 @@ class DatabaseService:
         duration: int,
         summary: Optional[str] = None,
         transcript: Optional[str] = None,
-        recording_url: Optional[str] = None
+        recording_url: Optional[str] = None,
+        qa_score: Optional[float] = None,
+        customer_sentiment: Optional[str] = None,
+        rto_risk: Optional[str] = None,
+        qa_notes: Optional[str] = None
     ) -> int:
-        """Insert historical call record into call_logs table."""
+        """Insert historical call record into call_logs table with QA metrics."""
         def _insert():
             conn = self._get_connection()
             try:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        INSERT INTO call_logs (customer_id, phone, customer_name, order_id, status, duration, summary, transcript, recording_url)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO call_logs (
+                            customer_id, phone, customer_name, order_id, status, duration, 
+                            summary, transcript, recording_url, qa_score, customer_sentiment, rto_risk, qa_notes
+                        )
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
-                        (customer_id, phone, customer_name, order_id, status.upper(), duration, summary or "", transcript or "", recording_url or "")
+                        (
+                            customer_id, phone, customer_name, order_id, status.upper(), duration,
+                            mask_sensitive_pii(summary or ""),
+                            mask_sensitive_pii(transcript or ""),
+                            recording_url or "",
+                            qa_score if qa_score is not None else 9.0,
+                            (customer_sentiment or "NEUTRAL").upper(),
+                            (rto_risk or "LOW").upper(),
+                            mask_sensitive_pii(qa_notes or "")
+                        )
                     )
                     return cur.lastrowid
             finally:

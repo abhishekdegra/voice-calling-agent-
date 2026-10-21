@@ -107,55 +107,89 @@ class AudioAdapter:
         peak = int(np.max(np.abs(samples)))
         return rms, peak
 
+    @staticmethod
+    def is_ringback_tone(samples: np.ndarray, sample_rate: int = 16000) -> bool:
+        """
+        Detects Indian & global telecom ringback tones (typically 400Hz - 450Hz sinusoidal dual-tones).
+        Ringback tones exhibit low zero-crossing variance and narrow-band harmonic concentration,
+        distinguishable from broadband human speech.
+        """
+        if len(samples) < 320:
+            return False
+        
+        # Calculate zero crossing rate
+        zero_crossings = np.sum(np.diff(samples > 0) != 0)
+        zcr = (zero_crossings * sample_rate) / (2.0 * len(samples))
+        
+        # Telecom ringback tones (380Hz to 480Hz) have ZCR tightly bounded around 380 - 480 Hz
+        if 360 <= zcr <= 500:
+            float_s = samples.astype(np.float32)
+            rms = float(np.sqrt(np.mean(float_s ** 2)))
+            # If amplitude is consistent with dial tone (> 150 RMS)
+            if rms >= 100.0:
+                return True
+        return False
+
     def process_incoming_pcm(
         self,
         pcm16: bytes,
-        is_ai_speaking: bool = False
-    ) -> tuple[bytes, bool]:
+        is_ai_speaking: bool = False,
+        recent_ai_peak: int = 0,
+        is_call_answered: bool = False
+    ) -> tuple[bytes, bool, float, int]:
         """
-        Adaptive Voice Clarity & Speech Processing for telephony audio:
-        - Boosts human speech cleanly so Gemini Live receives clear, crisp audio.
-        - Preserves soft words like 'haan', 'ji', 'theek hai' without clipping, distortion, or destructive zero-gating.
-        - Preserves natural continuous room acoustic tone so Gemini's neural VAD operates with full accuracy.
-        - Enables natural barge-in when customer speaks while AI is talking.
-        - Returns (clean_pcm16_bytes, is_speech).
+        Acoustic Echo Cancellation (AEC) & Voice Clarity Processing:
+        - Filters out telephone ringback / dial tones before pickup so bot doesn't speak during ringing.
+        - Suppresses speakerphone acoustic echo during AI speech via adaptive thresholding.
+        - Preserves soft human affirmations ('haan', 'ji', 'theek hai') with telephony AGC.
+        - Returns (clean_pcm16_bytes, is_speech, rms, peak).
         """
         if not pcm16:
-            return b"", False
+            return b"", False, 0.0, 0
 
         num_samples = len(pcm16) // 2
         if num_samples == 0:
-            return b"", False
+            return b"", False, 0.0, 0
 
         raw_samples = np.frombuffer(pcm16, dtype=np.int16)
         cleaned_samples = self.remove_dc_offset(raw_samples)
         float_s = cleaned_samples.astype(np.float32)
         rms, peak = self.calculate_energy(cleaned_samples)
 
-        # Telephony Voice AGC (Automatic Gain Control):
-        # Dynamically scales cellular phone speech up to clear telephony levels (Peak ~16000-22000)
-        # without clipping or distorting soft affirmations ('haan', 'ji', 'theek hai').
+        # 1. Ringback tone guard: Ringing audio should NEVER be treated as customer voice (only before pickup)
+        if not is_call_answered and self.is_ringback_tone(cleaned_samples, self.gemini_input_sample_rate):
+            self._consecutive_speech_frames = 0
+            return b"", False, rms, peak
+
+        # 2. Telephony Voice AGC (Automatic Gain Control):
+        # Dynamically scales cellular phone speech up to clear telephony levels
         if peak >= 140 and rms >= 24.0:
             target_gain = min(4.5, max(1.2, 18000.0 / max(peak, 1600)))
             boosted_samples = np.clip(float_s * target_gain, -32768, 32767).astype(np.int16)
         else:
-            # Ambient room tone and breath trails pass untouched
             boosted_samples = cleaned_samples
 
-        # Accurate speech activity detection (distinguishes real voice from background hiss):
+        # 3. Acoustic Echo Cancellation & Adaptive Barge-In Threshold:
+        # When AI is actively speaking, speakerphone acoustics bleed AI voice back into phone mic.
+        # We raise threshold adaptively relative to AI volume and require multi-frame vocal persistence.
         if is_ai_speaking:
-            is_active = (peak >= 350 and rms >= 130.0)
+            # Dynamic AEC floor: scales with AI output amplitude
+            dynamic_peak_threshold = max(420, min(1500, int(recent_ai_peak * 0.38)))
+            dynamic_rms_threshold = max(140.0, min(450.0, dynamic_peak_threshold * 0.32))
+            is_active = (peak >= dynamic_peak_threshold and rms >= dynamic_rms_threshold)
+            required_frames = 3  # ~60-90ms vocal persistence to filter speaker reflection
         else:
             is_active = (peak >= 200 and rms >= 32.0)
+            required_frames = 1
 
         if is_active:
             self._consecutive_speech_frames += 1
-            is_speech = self._consecutive_speech_frames >= (2 if is_ai_speaking else 1)
+            is_speech = self._consecutive_speech_frames >= required_frames
         else:
             self._consecutive_speech_frames = 0
             is_speech = False
 
-        return boosted_samples.tobytes(), is_speech
+        return boosted_samples.tobytes(), is_speech, rms, peak
 
     def gemini_to_telecmi(self, audio_chunk: bytes, to_mulaw: bool = False) -> bytes:
         """

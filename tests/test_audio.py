@@ -58,7 +58,7 @@ def test_voice_clarity_and_speech_detection():
     # 1. Soft voice (amplitude 400, 500Hz) -> boosted cleanly and speech detected
     t = np.arange(320)
     speech = (400 * np.sin(2 * np.pi * 500 * t / 16000)).astype(np.int16).tobytes()
-    boosted_speech, is_speech = adapter.process_incoming_pcm(speech, is_ai_speaking=False)
+    boosted_speech, is_speech, rms, peak = adapter.process_incoming_pcm(speech, is_ai_speaking=False, is_call_answered=True)
     out_samples = np.frombuffer(boosted_speech, dtype=np.int16)
     assert np.max(np.abs(out_samples)) > 400  # Boosted for clarity
     assert is_speech is True
@@ -70,12 +70,13 @@ def test_ai_speaking_barge_in_guard():
 
     # Moderate background chatter (amplitude 200) while AI is speaking -> no barge-in
     bg_sound = (200 * np.sin(2 * np.pi * 400 * t / 16000)).astype(np.int16).tobytes()
-    _, is_speech = adapter.process_incoming_pcm(bg_sound, is_ai_speaking=True)
+    _, is_speech, _, _ = adapter.process_incoming_pcm(bg_sound, is_ai_speaking=True, is_call_answered=True)
     assert is_speech is False
 
-    # Loud decisive customer speech (amplitude 2500) while AI is speaking -> triggers barge-in
-    loud_speech = (2500 * np.sin(2 * np.pi * 400 * t / 16000)).astype(np.int16).tobytes()
-    # Need 2 consecutive frames for barge-in
-    adapter.process_incoming_pcm(loud_speech, is_ai_speaking=True)
-    _, is_speech = adapter.process_incoming_pcm(loud_speech, is_ai_speaking=True)
+    # Loud decisive customer speech (amplitude 2500, 600Hz non-dial-tone) while AI is speaking -> triggers barge-in
+    loud_speech = (2500 * np.sin(2 * np.pi * 600 * t / 16000)).astype(np.int16).tobytes()
+    # Needs vocal persistence frames
+    adapter.process_incoming_pcm(loud_speech, is_ai_speaking=True, is_call_answered=True)
+    adapter.process_incoming_pcm(loud_speech, is_ai_speaking=True, is_call_answered=True)
+    _, is_speech, _, _ = adapter.process_incoming_pcm(loud_speech, is_ai_speaking=True, is_call_answered=True)
     assert is_speech is True

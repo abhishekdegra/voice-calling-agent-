@@ -13,10 +13,14 @@ from app.models.call_session import CallSession, CallState
 from app.models.call_outcome import CallOutcome
 from app.services.gemini_service import GeminiService
 from app.services.telecmi_service import TeleCMIService
+from app.services.telephony_manager import get_telephony_manager
+from app.services.call_auditor import get_call_auditor
+from app.services.live_broadcaster import get_live_broadcaster
 from app.tools.order_tools import OrderTools
 from app.tools.knowledge_tools import KnowledgeTools
 from app.utils.audio import AudioAdapter
 from app.utils.logging import logger
+from app.utils.pii_masking import mask_sensitive_pii
 from app.utils.security import normalize_indian_phone_number
 
 
@@ -79,7 +83,7 @@ class VoiceOrchestrator:
         return self.sessions.get(call_id)
 
     async def initiate_outbound_call(self, call_id: str) -> Dict[str, Any]:
-        """Trigger TeleCMI outbound call and command stream to our WebSocket."""
+        """Trigger outbound call with multi-carrier failover and error classification."""
         session = self.get_session(call_id)
         if not session:
             return {"success": False, "error": f"Session {call_id} not found"}
@@ -89,10 +93,11 @@ class VoiceOrchestrator:
 
         ws_url = f"{self.settings.telecmi_websocket_url}?call_id={call_id}"
 
-        res = await self.telecmi_service.initiate_streaming_call(
+        telephony_mgr = get_telephony_manager()
+        res = await telephony_mgr.initiate_call(
             customer_phone=session.customer_phone,
-            custom_websocket_url=ws_url,
-            extra_param=call_id
+            websocket_url=ws_url,
+            call_id=call_id
         )
 
         if res.get("success"):
@@ -119,6 +124,10 @@ class VoiceOrchestrator:
         extracted_phone = query_params.get("phone") or "9876543210"
         extracted_name = query_params.get("name") or "Customer"
         extracted_address = query_params.get("address") or query_params.get("notes") or ""
+        extracted_product = query_params.get("product_name") or query_params.get("product") or ""
+        extracted_price = query_params.get("product_price") or query_params.get("price") or ""
+        extracted_delivery = query_params.get("delivery_time") or query_params.get("delivery") or ""
+        extracted_payment = query_params.get("payment_method") or query_params.get("payment") or ""
 
         from app.services.db_service import get_db_service
         try:
@@ -135,11 +144,27 @@ class VoiceOrchestrator:
                     extracted_address = cust["notes"]
                 if cust.get("order_id"):
                     extracted_order = cust["order_id"]
+                if cust.get("product_name") and not extracted_product:
+                    extracted_product = cust["product_name"]
+                if cust.get("product_price") and not extracted_price:
+                    extracted_price = cust["product_price"]
+                if cust.get("delivery_time") and not extracted_delivery:
+                    extracted_delivery = cust["delivery_time"]
+                if cust.get("payment_method") and not extracted_payment:
+                    extracted_payment = cust["payment_method"]
         except Exception as e:
             logger.warning("db_customer_lookup_fallback", error=str(e))
 
         if not extracted_address or extracted_address in {"Bulk Import", "Bulk Pasted"}:
             extracted_address = "Plot 42, Near Metro Station, Mansarovar, Jaipur (302020)"
+        if not extracted_product:
+            extracted_product = "Welfog Premium Item"
+        if not extracted_price:
+            extracted_price = "₹999"
+        if not extracted_delivery:
+            extracted_delivery = "2-3 Business Days"
+        if not extracted_payment:
+            extracted_payment = "Cash on Delivery (COD)"
 
         session: Optional[CallSession] = None
         if call_id and call_id in self.sessions:
@@ -162,13 +187,23 @@ class VoiceOrchestrator:
 
         session.metadata["customer_name"] = extracted_name
         session.metadata["delivery_address"] = extracted_address
+        session.metadata["product_name"] = extracted_product
+        session.metadata["product_price"] = extracted_price
+        session.metadata["delivery_time"] = extracted_delivery
+        session.metadata["payment_method"] = extracted_payment
 
         session.transition_to(CallState.ANSWERED)
         logger.info(
             "telecmi_websocket_connected",
             call_id=session.call_id,
             order_id=session.order_id,
-            extra={"customer": extracted_name, "address": extracted_address}
+            extra={
+                "customer": extracted_name,
+                "address": extracted_address,
+                "product": extracted_product,
+                "price": extracted_price,
+                "delivery": extracted_delivery
+            }
         )
 
         audio_adapter = AudioAdapter(
@@ -191,6 +226,10 @@ class VoiceOrchestrator:
             order_id=extracted_order,
             customer_phone=extracted_phone,
             delivery_address=extracted_address,
+            product_name=extracted_product,
+            product_price=extracted_price,
+            delivery_time=extracted_delivery,
+            payment_method=extracted_payment,
             include_tools=True
         )
         model_id = self.settings.gemini_live_model
@@ -229,7 +268,9 @@ class VoiceOrchestrator:
                         session=session,
                         pickup_event=pickup_event,
                         customer_name=extracted_name,
-                        order_id=extracted_order
+                        order_id=extracted_order,
+                        product_name=extracted_product,
+                        product_price=extracted_price
                     )
                 )
 
@@ -278,25 +319,38 @@ class VoiceOrchestrator:
         session: CallSession,
         pickup_event: asyncio.Event,
         customer_name: str,
-        order_id: str
+        order_id: str,
+        product_name: str = "Welfog Premium Item",
+        product_price: str = "₹999"
     ):
-        """Wait for customer pickup signal and immediately trigger Priya opening greeting."""
+        """Wait for verified customer pickup signal and trigger warm human Priya opening greeting."""
         try:
             await asyncio.wait_for(pickup_event.wait(), timeout=60.0)
             session.transition_to(CallState.ANSWERED)
-            logger.info("customer_answered_triggering_opening_greeting", call_id=session.call_id)
+            logger.info("customer_pickup_confirmed_triggering_greeting", call_id=session.call_id)
 
-            # Brief 0.25s pause for WebRTC audio socket buffer to stabilize
-            await asyncio.sleep(0.25)
+            # Broadcast live call answered event to admin dashboard
+            broadcaster = get_live_broadcaster()
+            asyncio.create_task(
+                broadcaster.broadcast({
+                    "type": "call_connected",
+                    "call_id": session.call_id,
+                    "customer_name": customer_name,
+                    "order_id": order_id
+                })
+            )
+
+            # Brief 0.35s pause for WebRTC audio socket buffer to stabilize
+            await asyncio.sleep(0.35)
 
             name_greeting = customer_name if customer_name and customer_name != "Customer" else "Sir"
             session.metadata["customer_name"] = name_greeting
             greeting_instruction = (
-                f"Customer {name_greeting} has just picked up the phone. "
-                f"Give a SHORT, warm, human greeting — no more than 1 sentence. "
-                f"Say something like: 'Namaste {name_greeting} ji, main Priya Welfog se bol rahi hoon.' "
-                f"Then STOP and WAIT for the customer to respond. Do NOT say anything else until they speak. "
-                f"Once they respond, naturally continue the conversation about their order {order_id}."
+                f"Customer {name_greeting} has just answered the phone. "
+                f"Deliver a warm, human, 1-sentence opening greeting: "
+                f"'Namaste {name_greeting} ji, main Priya Welfog se bol rahi hoon.' "
+                f"Then STOP and WAIT for customer to respond. If customer already said 'Hello' or something, "
+                f"naturally respond to what they said and confirm order {order_id} for {product_name} (Total: {product_price})."
             )
             await gemini_session.send_client_content(
                 turns=[
@@ -321,7 +375,7 @@ class VoiceOrchestrator:
         session: CallSession,
         pickup_event: asyncio.Event
     ):
-        """Receive audio bytes from TeleCMI, filter background noise, and stream to Gemini Live."""
+        """Receive audio bytes from TeleCMI, filter ringback/echo, detect true voice, and stream to Gemini Live."""
         try:
             chunks_received = 0
             session.metadata["last_customer_speech_time"] = time.time()
@@ -334,8 +388,6 @@ class VoiceOrchestrator:
                     break
 
                 if "bytes" in message and message["bytes"]:
-                    if not pickup_event.is_set():
-                        pickup_event.set()
                     raw_audio = message["bytes"]
                     pcm16 = audio_adapter.telecmi_to_gemini(raw_audio)
                     if pcm16:
@@ -346,23 +398,41 @@ class VoiceOrchestrator:
                             is_ai_speaking = False
                             session.metadata["is_ai_speaking"] = False
 
-                        gated_pcm, is_speech = audio_adapter.process_incoming_pcm(
+                        recent_ai_peak = session.metadata.get("recent_ai_peak", 0)
+                        gated_pcm, is_speech, rms, peak = audio_adapter.process_incoming_pcm(
                             pcm16, 
-                            is_ai_speaking=is_ai_speaking
+                            is_ai_speaking=is_ai_speaking,
+                            recent_ai_peak=recent_ai_peak,
+                            is_call_answered=pickup_event.is_set()
                         )
+
                         if is_speech:
                             session.metadata["last_customer_speech_time"] = time.time()
                             session.metadata["last_ai_turn_end_time"] = time.time()
                             session.metadata["silence_prompt_count"] = 0
+                            session.metadata["call_concluded"] = False
+                            session.metadata.pop("farewell_time", None)
 
-                        if chunks_received % 50 == 0:
-                            logger.info(
-                                "forwarding_customer_audio_to_gemini",
-                                call_id=session.call_id,
-                                chunks=chunks_received,
-                                is_speech=is_speech,
-                                is_ai_speaking=is_ai_speaking
+                            # Verified human voice pickup detection (not dial tone)
+                            if not pickup_event.is_set():
+                                pickup_event.set()
+                                session.transition_to(CallState.ANSWERED)
+                                logger.info("pickup_detected_via_human_voice", call_id=session.call_id)
+
+                        # Broadcast live audio level to dashboard waveform every 4 chunks (~80ms)
+                        if chunks_received % 4 == 0:
+                            broadcaster = get_live_broadcaster()
+                            asyncio.create_task(
+                                broadcaster.broadcast({
+                                    "type": "audio_levels",
+                                    "call_id": session.call_id,
+                                    "rms_in": round(rms, 1),
+                                    "peak_in": int(peak),
+                                    "is_speech": is_speech,
+                                    "is_ai_speaking": is_ai_speaking
+                                })
                             )
+
                         if gated_pcm:
                             await gemini_session.send_realtime_input(
                                 audio=types.Blob(data=gated_pcm, mime_type="audio/pcm;rate=16000")
@@ -374,25 +444,29 @@ class VoiceOrchestrator:
                         if event in ("call_answered", "answered", "call_connected", "connected", "start", "answer"):
                             if not pickup_event.is_set():
                                 pickup_event.set()
+                                session.transition_to(CallState.ANSWERED)
+                                logger.info("pickup_detected_via_telecom_event", call_id=session.call_id, telecom_event=event)
                         elif event in ("stop", "hangup"):
                             logger.info("telecmi_hangup_event", call_id=session.call_id)
                             break
                         elif event == "media" and "payload" in data:
-                            if not pickup_event.is_set():
-                                pickup_event.set()
                             import base64
                             raw_audio = base64.b64decode(data["payload"])
                             pcm16 = audio_adapter.telecmi_to_gemini(raw_audio)
                             if pcm16:
+                                chunks_received += 1
                                 is_ai_speaking = bool(session.metadata.get("is_ai_speaking", False))
                                 last_ai_audio = session.metadata.get("last_ai_audio_time", 0.0)
                                 if is_ai_speaking and (time.time() - last_ai_audio > 0.35):
                                     is_ai_speaking = False
                                     session.metadata["is_ai_speaking"] = False
 
-                                gated_pcm, is_speech = audio_adapter.process_incoming_pcm(
+                                recent_ai_peak = session.metadata.get("recent_ai_peak", 0)
+                                gated_pcm, is_speech, rms, peak = audio_adapter.process_incoming_pcm(
                                     pcm16, 
-                                    is_ai_speaking=is_ai_speaking
+                                    is_ai_speaking=is_ai_speaking,
+                                    recent_ai_peak=recent_ai_peak,
+                                    is_call_answered=pickup_event.is_set()
                                 )
                                 if is_speech:
                                     session.metadata["last_customer_speech_time"] = time.time()
@@ -400,6 +474,24 @@ class VoiceOrchestrator:
                                     session.metadata["silence_prompt_count"] = 0
                                     session.metadata["call_concluded"] = False
                                     session.metadata.pop("farewell_time", None)
+
+                                    if not pickup_event.is_set():
+                                        pickup_event.set()
+                                        session.transition_to(CallState.ANSWERED)
+                                        logger.info("pickup_detected_via_human_voice", call_id=session.call_id)
+
+                                if chunks_received % 4 == 0:
+                                    broadcaster = get_live_broadcaster()
+                                    asyncio.create_task(
+                                        broadcaster.broadcast({
+                                            "type": "audio_levels",
+                                            "call_id": session.call_id,
+                                            "rms_in": round(rms, 1),
+                                            "peak_in": int(peak),
+                                            "is_speech": is_speech,
+                                            "is_ai_speaking": is_ai_speaking
+                                        })
+                                    )
 
                                 if gated_pcm:
                                     await gemini_session.send_realtime_input(
@@ -418,6 +510,7 @@ class VoiceOrchestrator:
         session: CallSession
     ):
         """Receive audio & tool calls from Gemini Live across all conversational turns and stream audio to TeleCMI."""
+        import numpy as np
         try:
             while True:
                 if session.status in {CallState.COMPLETED, CallState.DISCONNECTED, CallState.FAILED}:
@@ -442,8 +535,13 @@ class VoiceOrchestrator:
                                     if inline_data and getattr(inline_data, "data", None):
                                         session.metadata["is_ai_speaking"] = True
                                         session.metadata["last_ai_audio_time"] = time.time()
-                                        # Don't null out last_ai_turn_end_time; keep last valid value for silence math
                                         raw_gemini_pcm = inline_data.data
+
+                                        # Calculate audio energy for AEC tracking & live waveform broadcast
+                                        gemini_samples = np.frombuffer(raw_gemini_pcm, dtype=np.int16)
+                                        ai_rms, ai_peak = AudioAdapter.calculate_energy(gemini_samples)
+                                        session.metadata["recent_ai_peak"] = ai_peak
+
                                         telecmi_audio = audio_adapter.gemini_to_telecmi(raw_gemini_pcm)
                                         if telecmi_audio:
                                             try:
@@ -453,11 +551,35 @@ class VoiceOrchestrator:
                                                 return
                                             except Exception as send_err:
                                                 logger.warning("failed_sending_telecmi_audio", error=str(send_err))
+
+                                        # Broadcast AI speech audio level for real-time waveform on dashboard
+                                        broadcaster = get_live_broadcaster()
+                                        asyncio.create_task(
+                                            broadcaster.broadcast({
+                                                "type": "audio_levels",
+                                                "call_id": session.call_id,
+                                                "rms_out": round(ai_rms, 1),
+                                                "peak_out": int(ai_peak),
+                                                "is_ai_speaking": True
+                                            })
+                                        )
+
                                     elif getattr(part, "text", None):
-                                        try:
-                                            await websocket.send_text(json.dumps({"event": "ai_transcript", "text": part.text}))
-                                        except Exception:
-                                            pass
+                                        masked_text = mask_sensitive_pii(part.text.strip())
+                                        if masked_text:
+                                            session.metadata.setdefault("conversation_turns", []).append(f"Priya (AI): {masked_text}")
+                                            broadcaster = get_live_broadcaster()
+                                            asyncio.create_task(
+                                                broadcaster.broadcast({
+                                                    "type": "ai_transcript",
+                                                    "call_id": session.call_id,
+                                                    "text": masked_text
+                                                })
+                                            )
+                                            try:
+                                                await websocket.send_text(json.dumps({"event": "ai_transcript", "text": masked_text}))
+                                            except Exception:
+                                                pass
 
                             if getattr(server_content, "turn_complete", False):
                                 session.metadata["is_ai_speaking"] = False
@@ -468,8 +590,6 @@ class VoiceOrchestrator:
                                 except Exception:
                                     pass
 
-                                # If farewell was spoken or end_call invoked, start post-farewell silence watch
-                                # NEVER cut the call immediately! Line stays alive.
                                 if session.metadata.get("call_concluded"):
                                     session.metadata["farewell_time"] = time.time()
 
@@ -489,6 +609,15 @@ class VoiceOrchestrator:
                                     call_id=session.call_id,
                                     tool_name=fn_name,
                                     extra={"args": fn_args}
+                                )
+                                broadcaster = get_live_broadcaster()
+                                asyncio.create_task(
+                                    broadcaster.broadcast({
+                                        "type": "tool_executed",
+                                        "call_id": session.call_id,
+                                        "tool": fn_name,
+                                        "args": fn_args
+                                    })
                                 )
                                 try:
                                     await websocket.send_text(json.dumps({"event": "tool_calling", "tool": fn_name}))
@@ -535,16 +664,12 @@ class VoiceOrchestrator:
     ):
         """
         Proactive Silence & Call Concluding Watcher:
-        1. If conversation has reached farewell (order confirmed/cancelled), wait for 7 FULL SECONDS
-           of true silence from the customer before disconnecting.
-        2. If customer speaks at ANY point during or after farewell, the hangup is CANCELLED immediately.
-        3. Mid-call silence:
-           - 15s silence: Priya prompts 'Hello sir, kya aap mujhe sun pa rahe hain?'
-           - 27s total silence: Priya delivers polite goodbye, waits 5s of silence, then disconnects.
+        1. If conversation has reached farewell, wait for true silence before disconnecting.
+        2. If customer speaks at ANY point, hangup is cancelled immediately.
+        3. Human-like natural probing (Tier 1: 7s, Tier 2: 13s, Tier 3: 20s).
         """
         try:
             await pickup_event.wait()
-            # Initialize turn tracking — give Gemini time to generate first greeting
             now = time.time()
             session.metadata.setdefault("last_ai_turn_end_time", now + 8.0)
             session.metadata.setdefault("last_customer_speech_time", now)
@@ -555,11 +680,8 @@ class VoiceOrchestrator:
                 if session.status in {CallState.COMPLETED, CallState.DISCONNECTED, CallState.FAILED}:
                     break
 
-                # Post-farewell / Concluded call check:
-                # Disconnect smoothly once Priya completes farewell statement
                 if session.metadata.get("call_concluded"):
                     farewell_t = session.metadata.get("farewell_time")
-                    # Allow 3.5s grace period after Priya finishes speaking farewell
                     if farewell_t and (time.time() - farewell_t >= 3.5):
                         reason = session.metadata.get("concluded_reason", "completed")
                         logger.info("silence_watcher_concluding_call_after_farewell", call_id=session.call_id, reason=reason)
@@ -572,7 +694,6 @@ class VoiceOrchestrator:
                         except Exception:
                             pass
                         break
-                    # Fallback: if end_call was invoked but turn_complete was delayed, hang up after 12s
                     concluded_t = session.metadata.get("concluded_time", 0)
                     if concluded_t and (time.time() - concluded_t >= 12.0):
                         reason = session.metadata.get("concluded_reason", "completed")
@@ -588,11 +709,9 @@ class VoiceOrchestrator:
                         break
                     continue
 
-                # If AI is currently speaking, wait for AI turn to complete
                 if session.metadata.get("is_ai_speaking"):
                     continue
 
-                # Safely get timestamps, converting any None to 0.0
                 last_cust = session.metadata.get("last_customer_speech_time") or 0.0
                 last_ai = session.metadata.get("last_ai_turn_end_time") or 0.0
                 last_active = max(last_cust, last_ai)
@@ -603,8 +722,6 @@ class VoiceOrchestrator:
                 prompt_count = session.metadata.get("silence_prompt_count", 0)
 
                 # Tier 1: 7 seconds silence after AI spoke — Priya naturally continues
-                # Like a real human: if you greet someone and they don't reply, you naturally
-                # explain why you called instead of asking "can you hear me?"
                 if silence_duration >= 7.0 and prompt_count == 0:
                     session.metadata["silence_prompt_count"] = 1
                     session.metadata["last_ai_turn_end_time"] = time.time()
@@ -612,6 +729,7 @@ class VoiceOrchestrator:
                     if name == "Customer":
                         name = "Sir"
                     order_id = session.order_id or "WF-10928"
+                    prod = session.metadata.get("product_name") or "order"
                     logger.info("silence_tier1_natural_followup", call_id=session.call_id, silence_sec=silence_duration)
                     try:
                         await gemini_session.send_client_content(
@@ -619,7 +737,7 @@ class VoiceOrchestrator:
                                 types.Content(
                                     role="user",
                                     parts=[types.Part.from_text(
-                                        text=f"[Customer hasn't spoken yet. Like a real person would on a phone call, naturally continue by explaining why you called. Say something short like: '{name} ji, aapka order {order_id} hai Welfog se, bas confirm karna tha dispatch ke liye.' Keep it to 1 sentence.]"
+                                        text=f"[Customer hasn't spoken for 7 seconds. Like a real person on a phone call, naturally ask in 1 short sentence: '{name} ji, aapka {prod} ka order {order_id} confirm karna tha, kya aap line pe hain?']"
                                     )]
                                 )
                             ],
@@ -628,8 +746,8 @@ class VoiceOrchestrator:
                     except Exception as e:
                         logger.warning("silence_tier1_prompt_error", error=str(e))
 
-                # Tier 2: 10 seconds after Tier 1 — gentle check
-                elif silence_duration >= 10.0 and prompt_count == 1:
+                # Tier 2: 13 seconds total silence — gentle check
+                elif silence_duration >= 13.0 and prompt_count == 1:
                     session.metadata["silence_prompt_count"] = 2
                     session.metadata["last_ai_turn_end_time"] = time.time()
                     name = session.metadata.get("customer_name") or "Sir"
@@ -642,7 +760,7 @@ class VoiceOrchestrator:
                                 types.Content(
                                     role="user",
                                     parts=[types.Part.from_text(
-                                        text=f"[Customer is still quiet. Gently check in 1 short sentence: 'Hello {name} ji? Aap sun pa rahe hain?']"
+                                        text=f"[Customer is still quiet. Gently ask in 1 sentence: 'Hello {name} ji, agar aap abhi busy hain toh kya main thodi der baad call karu?']"
                                     )]
                                 )
                             ],
@@ -651,8 +769,8 @@ class VoiceOrchestrator:
                     except Exception as e:
                         logger.warning("silence_tier2_prompt_error", error=str(e))
 
-                # Tier 3: 10 seconds after Tier 2 -> polite goodbye
-                elif silence_duration >= 10.0 and prompt_count == 2:
+                # Tier 3: 20 seconds total silence -> polite goodbye
+                elif silence_duration >= 20.0 and prompt_count == 2:
                     session.metadata["silence_prompt_count"] = 3
                     session.metadata["call_concluded"] = True
                     session.metadata["concluded_time"] = time.time()
@@ -664,7 +782,7 @@ class VoiceOrchestrator:
                                 types.Content(
                                     role="user",
                                     parts=[types.Part.from_text(
-                                        text="[Customer is not responding. Say a short polite goodbye: 'Koi baat nahi sir, hum WhatsApp pe confirmation link bhej dete hain. Dhanyawad, have a nice day!']"
+                                        text="[Customer is not responding. Say a short polite goodbye: 'Lagta hai aap abhi busy hain sir. Koi problem nahi, hum WhatsApp pe confirmation bhej rahe hain. Thank you!']"
                                     )]
                                 )
                             ],
@@ -722,7 +840,7 @@ class VoiceOrchestrator:
             return {"status": "error", "message": f"Unknown tool: {name}"}
 
     def _finalize_outcome(self, session: CallSession, notes: str, success: bool):
-        """Construct structured outcome report for the call session."""
+        """Construct structured outcome report and trigger background AI Quality Auditor."""
         duration = None
         if session.started_at and session.ended_at:
             duration = (session.ended_at - session.started_at).total_seconds()
@@ -746,4 +864,37 @@ class VoiceOrchestrator:
             user_id=session.user_id,
             extra=outcome.model_dump()
         )
+
+        # Trigger background post-call QA Auditor
+        full_transcript = "\n".join(session.metadata.get("conversation_turns", []))
+        auditor = get_call_auditor()
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(
+                auditor.audit_call(
+                    call_id=session.call_id,
+                    customer_id=session.user_id,
+                    customer_name=session.metadata.get("customer_name") or "Customer",
+                    phone=session.customer_phone,
+                    order_id=session.order_id or "WF-10928",
+                    transcript=full_transcript,
+                    call_duration=int(duration or 0),
+                    status=session.status.value
+                )
+            )
+
+            # Broadcast call completion event to live admin dashboard
+            broadcaster = get_live_broadcaster()
+            loop.create_task(
+                broadcaster.broadcast({
+                    "type": "call_ended",
+                    "call_id": session.call_id,
+                    "order_id": session.order_id,
+                    "duration": int(duration or 0),
+                    "status": session.status.value
+                })
+            )
+        except RuntimeError:
+            pass
+
         return outcome

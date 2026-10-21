@@ -25,6 +25,12 @@ async def lifespan(app: FastAPI):
             "telecmi_app_id": settings.telecmi_app_id
         }
     )
+    try:
+        from app.services.db_service import get_db_service
+        db = get_db_service()
+        db._ensure_database_and_tables()
+    except Exception as e:
+        logger.error("db_startup_init_failed", error=str(e))
     yield
     logger.info("welfog_voice_server_stopped")
 

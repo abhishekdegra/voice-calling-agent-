@@ -82,17 +82,25 @@ class StructuredLogger:
             payload.update(mask_sensitive_data(kwargs))
         return json.dumps(payload, default=str)
 
-    def info(self, event: str, **kwargs):
-        self.logger.info(self._format_event(event, **kwargs))
+    def info(self, event_name: str, **kwargs):
+        if "event" in kwargs:
+            kwargs["action_event"] = kwargs.pop("event")
+        self.logger.info(self._format_event(event_name, **kwargs))
 
-    def warning(self, event: str, **kwargs):
-        self.logger.warning(self._format_event(event, **kwargs))
+    def warning(self, event_name: str, **kwargs):
+        if "event" in kwargs:
+            kwargs["action_event"] = kwargs.pop("event")
+        self.logger.warning(self._format_event(event_name, **kwargs))
 
-    def error(self, event: str, **kwargs):
-        self.logger.error(self._format_event(event, **kwargs))
+    def error(self, event_name: str, **kwargs):
+        if "event" in kwargs:
+            kwargs["action_event"] = kwargs.pop("event")
+        self.logger.error(self._format_event(event_name, **kwargs))
 
-    def debug(self, event: str, **kwargs):
-        self.logger.debug(self._format_event(event, **kwargs))
+    def debug(self, event_name: str, **kwargs):
+        if "event" in kwargs:
+            kwargs["action_event"] = kwargs.pop("event")
+        self.logger.debug(self._format_event(event_name, **kwargs))
 
 
 logger = StructuredLogger()

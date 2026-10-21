@@ -1111,7 +1111,8 @@
                     <canvas id="activeVisualizer" class="wave-canvas"></canvas>
                 </div>
 
-                <div class="active-call-right">
+                <div class="active-call-right" style="display:flex; align-items:center; gap:8px;">
+                    <button id="btnEavesdrop" class="btn-action" style="background:rgba(6,182,212,0.15); border-color:rgba(6,182,212,0.3); color:#38BDF8;" onclick="toggleEavesdrop()">🎧 Listen Live</button>
                     <button class="btn-skip-call" onclick="skipCurrentCall()">Hang Up &amp; Next ⏭</button>
                 </div>
             </div>
@@ -1155,13 +1156,14 @@
                                 <th>Status</th>
                                 <th>Talk Duration</th>
                                 <th>Recording</th>
+                                <th>AI QA &amp; Risk</th>
                                 <th>Last Call</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="customersTableBody">
                             <tr>
-                                <td colspan="8" style="text-align:center; padding: 24px;">Loading customers...</td>
+                                <td colspan="9" style="text-align:center; padding: 24px;">Loading customers...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1213,23 +1215,54 @@
 
     <!-- Modal: Single Customer Onboarding -->
     <div id="modalAddCustomer" class="modal-overlay">
-        <div class="modal-box">
+        <div class="modal-box" style="max-width: 560px;">
             <div class="modal-title">+ Onboard Customer</div>
-            <div class="form-group">
-                <label>Customer Full Name</label>
-                <input type="text" id="addName" class="form-control" placeholder="e.g. Ramesh Kumar" />
-            </div>
-            <div class="form-group">
-                <label>Mobile Number (10 Digits)</label>
-                <input type="text" id="addPhone" class="form-control" placeholder="e.g. 9876543210" />
-            </div>
+
             <div class="form-group">
                 <label>Welfog Order ID</label>
-                <input type="text" id="addOrder" class="form-control" value="WF-10928" placeholder="e.g. WF-10928" />
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="addOrder" class="form-control" placeholder="e.g. 2610070 or WF-10928" onblur="autoFetchOrderDetails('add')" />
+                    <button type="button" class="btn-action" style="padding:0 14px; white-space:nowrap; background:rgba(6,182,212,0.15); border-color:rgba(6,182,212,0.3); color:#38BDF8;" onclick="autoFetchOrderDetails('add')">⚡ Auto-Fetch</button>
+                </div>
+                <div id="addFetchStatus" style="font-size:11px; margin-top:4px; display:none;"></div>
             </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                <div class="form-group">
+                    <label>Customer Full Name</label>
+                    <input type="text" id="addName" class="form-control" placeholder="e.g. Ramesh Kumar" />
+                </div>
+                <div class="form-group">
+                    <label>Mobile Number (10 Digits)</label>
+                    <input type="text" id="addPhone" class="form-control" placeholder="e.g. 9876543210" />
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1.2fr 0.8fr; gap:12px;">
+                <div class="form-group">
+                    <label>Product Name</label>
+                    <input type="text" id="addProduct" class="form-control" placeholder="e.g. Noise-Cancelling Headphones" />
+                </div>
+                <div class="form-group">
+                    <label>Order Amount</label>
+                    <input type="text" id="addPrice" class="form-control" placeholder="e.g. ₹1,499" />
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <input type="text" id="addPayment" class="form-control" placeholder="e.g. Cash on Delivery (COD)" />
+                </div>
+                <div class="form-group">
+                    <label>Delivery Estimate</label>
+                    <input type="text" id="addDelivery" class="form-control" placeholder="e.g. Tomorrow by 4 PM" />
+                </div>
+            </div>
+
             <div class="form-group">
                 <label>Delivery Address (Verified on call)</label>
-                <textarea id="addNotes" class="form-control"
+                <textarea id="addNotes" class="form-control" style="min-height: 65px;"
                     placeholder="e.g. Plot 42, Near Metro Station, Mansarovar, Jaipur (PIN: 302020)"></textarea>
             </div>
             <div class="modal-actions">
@@ -1241,24 +1274,55 @@
 
     <!-- Modal: Edit Customer -->
     <div id="modalEditCustomer" class="modal-overlay">
-        <div class="modal-box">
+        <div class="modal-box" style="max-width: 560px;">
             <div class="modal-title">✏️ Edit Customer Details</div>
             <input type="hidden" id="editCustomerId" />
-            <div class="form-group">
-                <label>Customer Full Name</label>
-                <input type="text" id="editName" class="form-control" />
-            </div>
-            <div class="form-group">
-                <label>Mobile Number</label>
-                <input type="text" id="editPhone" class="form-control" />
-            </div>
+
             <div class="form-group">
                 <label>Welfog Order ID</label>
-                <input type="text" id="editOrder" class="form-control" />
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="editOrder" class="form-control" placeholder="e.g. WF-10928" onblur="autoFetchOrderDetails('edit')" />
+                    <button type="button" class="btn-action" style="padding:0 14px; white-space:nowrap; background:rgba(6,182,212,0.15); border-color:rgba(6,182,212,0.3); color:#38BDF8;" onclick="autoFetchOrderDetails('edit')">⚡ Auto-Fetch</button>
+                </div>
+                <div id="editFetchStatus" style="font-size:11px; margin-top:4px; display:none;"></div>
             </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                <div class="form-group">
+                    <label>Customer Full Name</label>
+                    <input type="text" id="editName" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <label>Mobile Number</label>
+                    <input type="text" id="editPhone" class="form-control" />
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1.2fr 0.8fr; gap:12px;">
+                <div class="form-group">
+                    <label>Product Name</label>
+                    <input type="text" id="editProduct" class="form-control" placeholder="e.g. Noise-Cancelling Headphones" />
+                </div>
+                <div class="form-group">
+                    <label>Order Amount</label>
+                    <input type="text" id="editPrice" class="form-control" placeholder="e.g. ₹1,499" />
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <input type="text" id="editPayment" class="form-control" placeholder="e.g. Cash on Delivery (COD)" />
+                </div>
+                <div class="form-group">
+                    <label>Delivery Estimate</label>
+                    <input type="text" id="editDelivery" class="form-control" placeholder="e.g. Tomorrow by 4 PM" />
+                </div>
+            </div>
+
             <div class="form-group">
                 <label>Delivery Address (Verified on call)</label>
-                <textarea id="editNotes" class="form-control"
+                <textarea id="editNotes" class="form-control" style="min-height: 65px;"
                     placeholder="e.g. Plot 42, Near Metro Station, Mansarovar, Jaipur (PIN: 302020)"></textarea>
             </div>
             <div class="modal-actions">
@@ -1273,9 +1337,9 @@
         <div class="modal-box">
             <div class="modal-title">📥 Bulk Onboard Customers</div>
             <div class="form-group">
-                <label>Paste Phone Numbers (One per line or Name, Phone, OrderID)</label>
+                <label>Paste Phone Numbers (One per line or Name, Phone, OrderID, Product, Price)</label>
                 <textarea id="bulkText" class="form-control" style="min-height: 140px;"
-                    placeholder="Example:&#10;Arjun Sharma, 9876543210, WF-10928&#10;Rahul Verma, 9876543211, WF-10929&#10;9123456780"></textarea>
+                    placeholder="Example:&#10;Arjun Sharma, 9876543210, WF-10928, Wireless Headphones, ₹1499&#10;Rahul Verma, 9876543211, WF-10929&#10;9123456780"></textarea>
             </div>
             <div style="font-size:12px; color:var(--text-muted);">
                 💡 You can paste 10, 50, or 500 numbers at once. They will be added to the queue automatically.
@@ -1289,27 +1353,37 @@
 
     <!-- Modal: View Call Transcript & Notes -->
     <div id="modalTranscript" class="modal-overlay">
-        <div class="modal-box" style="max-width: 620px;">
-            <div class="modal-title">📄 Call Details &amp; Audio Recording</div>
-            <div id="transcriptHeader" style="font-size: 13px; color: var(--text-muted);"></div>
+        <div class="modal-box" style="max-width: 640px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="modal-title">📄 Call Details &amp; QA Audit</div>
+                <div style="padding:2px 8px; border-radius:4px; background:rgba(139,92,246,0.15); color:#C084FC; font-size:11px; font-weight:600;">🔒 PII &amp; OTP Protected</div>
+            </div>
+            <div id="transcriptHeader" style="font-size: 13px; color: var(--text-muted); margin-top:2px;"></div>
+
+            <!-- QA Scoring Badges Bar -->
+            <div id="modalQaBar" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+                <div id="modalQaScore" style="padding:4px 10px; border-radius:6px; background:rgba(245,158,11,0.15); color:#FBBF24; font-size:12px; font-weight:700;">⭐ QA Score: 9.0</div>
+                <div id="modalSentiment" style="padding:4px 10px; border-radius:6px; background:rgba(16,185,129,0.15); color:#34D399; font-size:12px; font-weight:600;">🟢 Sentiment: SATISFIED</div>
+                <div id="modalRtoRisk" style="padding:4px 10px; border-radius:6px; background:rgba(6,182,212,0.15); color:#38BDF8; font-size:12px; font-weight:600;">🛡️ RTO Risk: LOW</div>
+            </div>
 
             <!-- In-Modal Recording Player -->
             <div id="transcriptAudioContainer"
-                style="display:none; background:rgba(0,0,0,0.3); border:1px solid var(--bg-card-border); border-radius:12px; padding:12px;">
+                style="display:none; background:rgba(0,0,0,0.3); border:1px solid var(--bg-card-border); border-radius:12px; padding:12px; margin-top:8px;">
                 <label
                     style="font-size:12px; font-weight:600; color:var(--accent-teal); display:block; margin-bottom:6px;">🎙️
                     Call Recording Audio</label>
                 <audio id="modalAudioPlayer" controls style="width:100%; height:38px; border-radius:8px;"></audio>
             </div>
 
-            <div class="form-group">
-                <label>AI Summary / Outcome</label>
+            <div class="form-group" style="margin-top:8px;">
+                <label>AI Summary &amp; Audit Notes</label>
                 <div id="transcriptSummary"
                     style="background:rgba(255,255,255,0.04); padding:10px 12px; border-radius:8px; font-size:13px; color:#34D399;">
                 </div>
             </div>
             <div class="form-group">
-                <label>Full Conversation Dialogue</label>
+                <label>Full Conversation Dialogue (PII Scrubbed)</label>
                 <div id="transcriptBody"
                     style="background:rgba(0,0,0,0.4); padding:12px; border-radius:10px; font-family:'Courier New', monospace; font-size:12px; max-height:220px; overflow-y:auto; white-space:pre-wrap;">
                 </div>
@@ -1788,7 +1862,11 @@
             const phone = encodeURIComponent(currentCustomer.phone);
             const name = encodeURIComponent(currentCustomer.name || 'Customer');
             const address = encodeURIComponent(currentCustomer.notes || 'Plot 42, Near Metro Station, Mansarovar, Jaipur (302020)');
-            const wsUrl = `${wsProtocol}//${window.location.host}/ws/telecmi?call_id=${orderId}&order_id=${orderId}&phone=${phone}&name=${name}&address=${address}`;
+            const productName = encodeURIComponent(currentCustomer.product_name || '');
+            const productPrice = encodeURIComponent(currentCustomer.product_price || '');
+            const deliveryTime = encodeURIComponent(currentCustomer.delivery_time || '');
+            const paymentMethod = encodeURIComponent(currentCustomer.payment_method || '');
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/telecmi?call_id=${orderId}&order_id=${orderId}&phone=${phone}&name=${name}&address=${address}&product_name=${productName}&product_price=${productPrice}&delivery_time=${deliveryTime}&payment_method=${paymentMethod}`;
 
             aiWebSocket = new WebSocket(wsUrl);
             aiWebSocket.binaryType = 'arraybuffer';
@@ -1850,34 +1928,154 @@
             callTimerInterval = null;
         }
 
-        // Visualizer
+        // Visualizer with Real-time Dual-Energy (Violet for Priya / Cyan for Customer)
         let animId = null;
+        let liveRmsIn = 0;
+        let livePeakIn = 0;
+        let liveRmsOut = 0;
+        let livePeakOut = 0;
+        let isCustomerSpeakingLive = false;
+        let isAiSpeakingLive = false;
+        let isEavesdropping = true;
+        let adminWs = null;
+
+        function toggleEavesdrop() {
+            isEavesdropping = !isEavesdropping;
+            const btn = document.getElementById('btnEavesdrop');
+            const audioTag = document.getElementById('telecmi_audio_tag');
+            if (audioTag) {
+                audioTag.muted = !isEavesdropping;
+            }
+            if (isEavesdropping) {
+                if (btn) {
+                    btn.innerHTML = '🔊 Mute Monitor';
+                    btn.style.background = 'rgba(16,185,129,0.2)';
+                    btn.style.borderColor = 'rgba(16,185,129,0.5)';
+                    btn.style.color = '#34D399';
+                }
+                log('🎧 Live call eavesdropping UNMUTED — audio streaming to speakers.', 'info');
+            } else {
+                if (btn) {
+                    btn.innerHTML = '🎧 Listen Live';
+                    btn.style.background = 'rgba(6,182,212,0.15)';
+                    btn.style.borderColor = 'rgba(6,182,212,0.3)';
+                    btn.style.color = '#38BDF8';
+                }
+                log('🔇 Live call monitor MUTED (visual waveform and live transcripts continue).', 'info');
+            }
+        }
+
         function startVisualizer() {
             const canvas = document.getElementById('activeVisualizer');
+            if (!canvas) return;
             const ctx = canvas.getContext('2d');
             let phase = 0;
+
             function draw() {
                 animId = requestAnimationFrame(draw);
                 phase += 0.08;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.beginPath();
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = '#06B6D4';
                 const mid = canvas.height / 2;
+
+                // Dynamic heights derived from live peak energy from AdminLiveBroadcaster
+                const custAmp = Math.min(20, 3 + (livePeakIn / 800) * 16);
+                const aiAmp = Math.min(20, 3 + (livePeakOut / 800) * 16);
+
+                // Cyan wave (Customer voice incoming)
+                ctx.beginPath();
+                ctx.lineWidth = isCustomerSpeakingLive ? 3 : 1.5;
+                ctx.strokeStyle = isCustomerSpeakingLive ? '#06B6D4' : 'rgba(6, 182, 212, 0.4)';
                 for (let x = 0; x < canvas.width; x++) {
-                    const y = mid + Math.sin(x * 0.08 + phase) * 12 * Math.sin(phase * 0.4);
+                    const y = mid + Math.sin(x * 0.09 + phase) * custAmp * Math.sin(phase * 0.35);
                     if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 }
                 ctx.stroke();
+
+                // Violet wave (Priya AI voice outgoing)
+                ctx.beginPath();
+                ctx.lineWidth = isAiSpeakingLive ? 3 : 1.5;
+                ctx.strokeStyle = isAiSpeakingLive ? '#A78BFA' : 'rgba(167, 139, 250, 0.4)';
+                for (let x = 0; x < canvas.width; x++) {
+                    const y = mid + Math.cos(x * 0.07 - phase) * aiAmp * Math.cos(phase * 0.4);
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Natural decay for audio peaks
+                livePeakIn *= 0.90;
+                livePeakOut *= 0.90;
             }
             draw();
         }
 
         function stopVisualizer() {
             if (animId) cancelAnimationFrame(animId);
+            animId = null;
             const canvas = document.getElementById('activeVisualizer');
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            livePeakIn = 0;
+            livePeakOut = 0;
+            isCustomerSpeakingLive = false;
+            isAiSpeakingLive = false;
+        }
+
+        function initAdminLiveMonitor() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const monitorUrl = `${wsProtocol}//${window.location.host}/ws/admin/live-monitor`;
+
+            try {
+                if (adminWs) {
+                    try { adminWs.close(); } catch (e) { }
+                    adminWs = null;
+                }
+
+                adminWs = new WebSocket(monitorUrl);
+
+                adminWs.onopen = () => {
+                    log('📡 Admin Live Telemetry & Eavesdrop Monitor connected.', 'success');
+                };
+
+                adminWs.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === 'audio_levels') {
+                            if (msg.rms_in !== undefined) liveRmsIn = msg.rms_in;
+                            if (msg.peak_in !== undefined) livePeakIn = msg.peak_in;
+                            if (msg.rms_out !== undefined) liveRmsOut = msg.rms_out;
+                            if (msg.peak_out !== undefined) livePeakOut = msg.peak_out;
+                            if (msg.is_customer_speaking !== undefined) isCustomerSpeakingLive = msg.is_customer_speaking;
+                            if (msg.is_ai_speaking !== undefined) isAiSpeakingLive = msg.is_ai_speaking;
+                        } else if (msg.type === 'ai_transcript') {
+                            if (msg.text) {
+                                log(`Priya (AI): "${msg.text}"`, 'ai');
+                                conversationTranscript.push(`Priya (AI): ${msg.text}`);
+                            }
+                        } else if (msg.type === 'tool_executed') {
+                            log(`⚙️ Tool Executed: ${msg.tool}`, 'info');
+                        } else if (msg.type === 'call_connected') {
+                            log(`📞 Call Connected: ${msg.customer_name} (+91 ${msg.phone})`, 'info');
+                        } else if (msg.type === 'qa_audit_completed') {
+                            log(`⭐ AI QA Audit: ${msg.human_score}/10 (${msg.customer_sentiment}, RTO: ${msg.rto_risk}) for ${msg.customer_name}`, 'success');
+                            refreshDashboard();
+                        } else if (msg.type === 'call_ended') {
+                            refreshDashboard();
+                        }
+                    } catch (e) { }
+                };
+
+                adminWs.onclose = () => {
+                    setTimeout(initAdminLiveMonitor, 4000);
+                };
+
+                adminWs.onerror = () => {
+                    try { adminWs.close(); } catch (e) { }
+                };
+            } catch (err) {
+                console.warn('Live monitor init error:', err);
+            }
         }
 
         // Autonomous Campaign Execution Loop
@@ -1911,7 +2109,9 @@
                 // Show active call monitor
                 document.getElementById('activeCallBar').style.display = 'flex';
                 document.getElementById('activeCustomerName').textContent = cust.name;
-                document.getElementById('activeCustomerPhone').textContent = `+91 ${cust.phone} • Order: ${cust.order_id || 'WF-10928'}`;
+                const activeProd = cust.product_name ? ` • 📦 ${cust.product_name}` : '';
+                const activePrice = cust.product_price ? ` (${cust.product_price})` : '';
+                document.getElementById('activeCustomerPhone').textContent = `+91 ${cust.phone} • Order: ${cust.order_id || 'WF-10928'}${activeProd}${activePrice}`;
                 document.getElementById('activeCallStatusBadge').textContent = 'Dialing...';
                 document.getElementById('activeCallStatusBadge').className = 'status-badge CALLING';
                 document.getElementById('activeCallTimer').textContent = '00:00';
@@ -2187,7 +2387,9 @@
 
             document.getElementById('activeCallBar').style.display = 'flex';
             document.getElementById('activeCustomerName').textContent = cust.name;
-            document.getElementById('activeCustomerPhone').textContent = `+91 ${cust.phone} • Order: ${cust.order_id || 'WF-10928'}`;
+            const activeProd = cust.product_name ? ` • 📦 ${cust.product_name}` : '';
+            const activePrice = cust.product_price ? ` (${cust.product_price})` : '';
+            document.getElementById('activeCustomerPhone').textContent = `+91 ${cust.phone} • Order: ${cust.order_id || 'WF-10928'}${activeProd}${activePrice}`;
             document.getElementById('activeCallStatusBadge').textContent = 'Dialing...';
             document.getElementById('activeCallStatusBadge').className = 'status-badge CALLING';
             document.getElementById('activeCallTimer').textContent = '00:00';
@@ -2287,10 +2489,16 @@
                     const recBtn = l.recording_url
                         ? `<button class="btn-play-audio" onclick="event.stopPropagation(); playRecording('${l.recording_url}', '${escapeHtml(l.customer_name)}', '${escapeHtml(l.phone)}')">▶ Play</button>`
                         : '';
+                    const qaBadge = (l.qa_score !== undefined && l.qa_score !== null)
+                        ? `<span style="font-size:10px; font-weight:700; color:#FBBF24; background:rgba(245,158,11,0.15); padding:1px 6px; border-radius:4px;">⭐ ${l.qa_score}</span>`
+                        : '';
                     return `
             <div class="history-item" onclick="openTranscriptModalFromHistory(${idx})">
               <div class="history-item-left">
-                <span class="history-name">${escapeHtml(l.customer_name || 'Customer')} (${escapeHtml(l.phone)})</span>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span class="history-name">${escapeHtml(l.customer_name || 'Customer')} (${escapeHtml(l.phone)})</span>
+                  ${qaBadge}
+                </div>
                 <span class="history-sub">${l.duration}s &bull; ${escapeHtml(l.created_at)}</span>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
@@ -2308,7 +2516,7 @@
         function openTranscriptModalFromHistory(idx) {
             const l = cachedCallLogs[idx];
             if (!l) return;
-            openTranscriptModal(l.customer_id || 0, l.phone, l.summary, l.transcript, l.recording_url);
+            openTranscriptModal(l.customer_id || 0, l.phone, l.summary, l.transcript, l.recording_url, l.qa_score, l.customer_sentiment, l.rto_risk, l.qa_notes);
         }
 
         function refreshDashboard() {
@@ -2320,7 +2528,7 @@
         function renderCustomersTable() {
             const tbody = document.getElementById('customersTableBody');
             if (customers.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 32px; color:var(--text-muted);">No customers found matching filter.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding: 32px; color:var(--text-muted);">No customers found matching filter.</td></tr>';
                 return;
             }
 
@@ -2333,17 +2541,47 @@
                     ? c.notes
                     : 'Plot 42, Near Metro Station, Mansarovar, Jaipur (302020)';
 
+                const prodDisplay = c.product_name 
+                    ? `<div style="font-size:11px; color:#A78BFA; margin-top:2px; max-width:210px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(c.product_name)}">📦 ${escapeHtml(c.product_name)}</div>`
+                    : '';
+                const priceBadge = c.product_price
+                    ? `<span style="font-size:10px; background:rgba(52,211,153,0.12); color:#34D399; padding:1px 6px; border-radius:4px; font-weight:600; margin-left:4px;">${escapeHtml(c.product_price)}</span>`
+                    : '';
+                const deliveryBadge = c.delivery_time
+                    ? `<div style="font-size:10px; color:#94A3B8; margin-top:2px;">🚚 ${escapeHtml(c.delivery_time)}</div>`
+                    : '';
+
+                let qaCell = `<span style="color:var(--text-muted); font-size:11px;">-</span>`;
+                if (c.status !== 'PENDING' && c.qa_score !== undefined && c.qa_score !== null) {
+                    const scoreColor = c.qa_score >= 8.5 ? '#34D399' : c.qa_score >= 6.5 ? '#FBBF24' : '#F87171';
+                    const rtoColor = c.rto_risk === 'HIGH' ? '#EF4444' : c.rto_risk === 'MEDIUM' ? '#F59E0B' : '#10B981';
+                    qaCell = `
+                        <div style="display:flex; flex-direction:column; gap:2px;">
+                            <span style="font-size:11px; font-weight:700; color:${scoreColor}; background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:4px; display:inline-block; width:fit-content;">⭐ ${c.qa_score}/10</span>
+                            <div style="display:flex; gap:3px; align-items:center;">
+                                <span style="font-size:10px; color:${rtoColor}; font-weight:600;">🛡️ ${escapeHtml(c.rto_risk || 'LOW')}</span>
+                                ${c.customer_sentiment ? `<span style="font-size:9px; color:#94A3B8;">(${escapeHtml(c.customer_sentiment)})</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+
                 return `
           <tr>
             <td>
               <strong>${escapeHtml(c.name)}</strong>
+              ${prodDisplay}
               <div style="font-size:11px; color:#38BDF8; margin-top:2px; max-width:220px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(addrDisplay)}">📍 ${escapeHtml(addrDisplay)}</div>
             </td>
             <td>+91 ${escapeHtml(c.phone)}</td>
-            <td><code style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px;">${escapeHtml(c.order_id || 'WF-10928')}</code></td>
+            <td>
+              <code style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px;">${escapeHtml(c.order_id || 'WF-10928')}</code>${priceBadge}
+              ${deliveryBadge}
+            </td>
             <td><span class="status-badge ${c.status}">${c.status}</span></td>
             <td><strong>${c.call_duration ? c.call_duration + 's' : '0s'}</strong></td>
             <td>${recCell}</td>
+            <td>${qaCell}</td>
             <td>${c.last_called_at || '-'}</td>
             <td>
               <div class="action-icons">
@@ -2428,12 +2666,89 @@
             window.location.href = '/api/customers/export-csv';
         }
 
+        // Auto-fetch Order Details from Real Welfog API
+        async function autoFetchOrderDetails(prefix) {
+            const orderInput = document.getElementById(`${prefix}Order`);
+            const statusDiv = document.getElementById(`${prefix}FetchStatus`);
+            const orderId = orderInput ? orderInput.value.trim() : '';
+            if (!orderId) return;
+
+            if (statusDiv) {
+                statusDiv.style.display = 'block';
+                statusDiv.style.color = '#38BDF8';
+                statusDiv.textContent = '🔄 Querying Welfog Order API...';
+            }
+
+            try {
+                const res = await fetch(`/api/orders/lookup?order_id=${encodeURIComponent(orderId)}`);
+                if (!res.ok) {
+                    if (statusDiv) {
+                        statusDiv.style.color = '#F59E0B';
+                        statusDiv.textContent = 'ℹ️ Live order not found in remote API, please enter details manually.';
+                    }
+                    return;
+                }
+                const data = await res.json();
+                if (data.found && data.order) {
+                    const o = data.order;
+                    if (o.customer_name) {
+                        const nameEl = document.getElementById(`${prefix}Name`);
+                        if (nameEl) nameEl.value = o.customer_name;
+                    }
+                    if (o.customer_phone) {
+                        const phoneEl = document.getElementById(`${prefix}Phone`);
+                        if (phoneEl) phoneEl.value = o.customer_phone;
+                    }
+                    if (o.product_name) {
+                        const prodEl = document.getElementById(`${prefix}Product`);
+                        if (prodEl) prodEl.value = o.product_name;
+                    }
+                    if (o.product_price) {
+                        const priceEl = document.getElementById(`${prefix}Price`);
+                        if (priceEl) priceEl.value = o.product_price;
+                    }
+                    if (o.payment_method) {
+                        const payEl = document.getElementById(`${prefix}Payment`);
+                        if (payEl) payEl.value = o.payment_method;
+                    }
+                    if (o.delivery_time) {
+                        const delEl = document.getElementById(`${prefix}Delivery`);
+                        if (delEl) delEl.value = o.delivery_time;
+                    }
+                    if (o.delivery_address) {
+                        const notesEl = document.getElementById(`${prefix}Notes`);
+                        if (notesEl) notesEl.value = o.delivery_address;
+                    }
+                    if (statusDiv) {
+                        statusDiv.style.color = '#34D399';
+                        statusDiv.textContent = `✅ Order fetched: ${o.customer_name || 'Customer'} • ${o.product_name || 'Details found'} (${o.product_price || ''})`;
+                    }
+                } else {
+                    if (statusDiv) {
+                        statusDiv.style.color = '#94A3B8';
+                        statusDiv.textContent = 'ℹ️ Order not in API cache, feel free to enter custom product/price.';
+                    }
+                }
+            } catch (e) {
+                if (statusDiv) {
+                    statusDiv.style.color = '#EF4444';
+                    statusDiv.textContent = '⚠️ Could not reach Order API. You can enter details manually.';
+                }
+            }
+        }
+
         // Modals
         function openAddModal() {
             document.getElementById('addName').value = '';
             document.getElementById('addPhone').value = '';
-            document.getElementById('addOrder').value = 'WF-10928';
+            document.getElementById('addOrder').value = '';
+            document.getElementById('addProduct').value = '';
+            document.getElementById('addPrice').value = '';
+            document.getElementById('addPayment').value = 'Cash on Delivery (COD)';
+            document.getElementById('addDelivery').value = '';
             document.getElementById('addNotes').value = '';
+            const statusDiv = document.getElementById('addFetchStatus');
+            if (statusDiv) { statusDiv.style.display = 'none'; statusDiv.textContent = ''; }
             document.getElementById('modalAddCustomer').style.display = 'flex';
         }
 
@@ -2441,10 +2756,16 @@
             const cust = customers.find(c => c.id === id);
             if (!cust) return;
             document.getElementById('editCustomerId').value = cust.id;
-            document.getElementById('editName').value = cust.name;
-            document.getElementById('editPhone').value = cust.phone;
+            document.getElementById('editName').value = cust.name || '';
+            document.getElementById('editPhone').value = cust.phone || '';
             document.getElementById('editOrder').value = cust.order_id || 'WF-10928';
+            document.getElementById('editProduct').value = cust.product_name || '';
+            document.getElementById('editPrice').value = cust.product_price || '';
+            document.getElementById('editPayment').value = cust.payment_method || 'Cash on Delivery (COD)';
+            document.getElementById('editDelivery').value = cust.delivery_time || 'Tomorrow by 4 PM';
             document.getElementById('editNotes').value = cust.notes || '';
+            const statusDiv = document.getElementById('editFetchStatus');
+            if (statusDiv) { statusDiv.style.display = 'none'; statusDiv.textContent = ''; }
             document.getElementById('modalEditCustomer').style.display = 'flex';
         }
 
@@ -2466,6 +2787,10 @@
             const name = document.getElementById('addName').value.trim() || 'Customer';
             const phone = document.getElementById('addPhone').value.trim();
             const order_id = document.getElementById('addOrder').value.trim() || 'WF-10928';
+            const product_name = document.getElementById('addProduct').value.trim();
+            const product_price = document.getElementById('addPrice').value.trim();
+            const payment_method = document.getElementById('addPayment').value.trim();
+            const delivery_time = document.getElementById('addDelivery').value.trim();
             const notes = document.getElementById('addNotes').value.trim();
 
             if (!phone || phone.length < 10) {
@@ -2476,12 +2801,12 @@
             await fetch('/api/customers', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, phone, order_id, notes })
+                body: JSON.stringify({ name, phone, order_id, notes, product_name, product_price, payment_method, delivery_time })
             });
 
             closeModals();
             refreshDashboard();
-            log(`Customer ${name} (+91 ${phone}) added to calling queue.`, 'success');
+            log(`Customer ${name} (+91 ${phone}) added with order ${order_id} (${product_name || 'Item'}).`, 'success');
         }
 
         async function submitEditCustomer() {
@@ -2489,6 +2814,10 @@
             const name = document.getElementById('editName').value.trim();
             const phone = document.getElementById('editPhone').value.trim();
             const order_id = document.getElementById('editOrder').value.trim();
+            const product_name = document.getElementById('editProduct').value.trim();
+            const product_price = document.getElementById('editPrice').value.trim();
+            const payment_method = document.getElementById('editPayment').value.trim();
+            const delivery_time = document.getElementById('editDelivery').value.trim();
             const notes = document.getElementById('editNotes').value.trim();
 
             if (!phone || phone.length < 10) {
@@ -2499,7 +2828,7 @@
             await fetch(`/api/customers/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, phone, order_id, notes })
+                body: JSON.stringify({ name, phone, order_id, notes, product_name, product_price, payment_method, delivery_time })
             });
 
             closeModals();
@@ -2530,12 +2859,41 @@
             const res = await fetch(`/api/customers/${id}`);
             if (!res.ok) return;
             const cust = await res.json();
-            openTranscriptModal(cust.id, cust.phone, cust.call_summary, cust.transcript, cust.recording_url);
+            openTranscriptModal(cust.id, cust.phone, cust.call_summary, cust.transcript, cust.recording_url, cust.qa_score, cust.customer_sentiment, cust.rto_risk, cust.qa_notes);
         }
 
-        function openTranscriptModal(id, phone, summary, transcript, recording_url) {
+        function openTranscriptModal(id, phone, summary, transcript, recording_url, qa_score, sentiment, rto_risk, qa_notes) {
             document.getElementById('transcriptHeader').textContent = `Customer ID: #${id} • Phone: +91 ${phone}`;
-            document.getElementById('transcriptSummary').textContent = summary || 'No summary recorded.';
+
+            const scoreVal = (qa_score !== undefined && qa_score !== null) ? Number(qa_score).toFixed(1) : null;
+            const scoreEl = document.getElementById('modalQaScore');
+            if (scoreEl) {
+                if (scoreVal !== null) {
+                    scoreEl.textContent = `⭐ QA Score: ${scoreVal}/10`;
+                    scoreEl.style.color = Number(scoreVal) >= 8.5 ? '#34D399' : Number(scoreVal) >= 6.5 ? '#FBBF24' : '#F87171';
+                } else {
+                    scoreEl.textContent = '⭐ QA Score: Pending';
+                    scoreEl.style.color = '#94A3B8';
+                }
+            }
+
+            const sentEl = document.getElementById('modalSentiment');
+            if (sentEl) {
+                sentEl.textContent = `🎭 Sentiment: ${sentiment || 'SATISFIED'}`;
+            }
+
+            const rtoEl = document.getElementById('modalRtoRisk');
+            if (rtoEl) {
+                const rtoVal = rto_risk || 'LOW';
+                rtoEl.textContent = `🛡️ RTO Risk: ${rtoVal}`;
+                rtoEl.style.color = rtoVal === 'HIGH' ? '#EF4444' : rtoVal === 'MEDIUM' ? '#F59E0B' : '#38BDF8';
+            }
+
+            const combinedSummary = (qa_notes && qa_notes !== summary)
+                ? `${summary || 'Call completed.'}\n\n🔍 AI QA Auditor Notes: ${qa_notes}`
+                : (summary || 'No summary recorded.');
+
+            document.getElementById('transcriptSummary').textContent = combinedSummary;
             document.getElementById('transcriptBody').textContent = transcript || 'No conversation transcript recorded for this call.';
 
             const audioCont = document.getElementById('transcriptAudioContainer');
@@ -2561,6 +2919,7 @@
         // Init on Page Load
         window.addEventListener('DOMContentLoaded', () => {
             initTeleCMI();
+            initAdminLiveMonitor();
             refreshDashboard();
             // Auto-refresh stats every 6 seconds
             setInterval(refreshDashboard, 6000);

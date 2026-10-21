@@ -81,14 +81,33 @@ class OrderTools:
             if not res.get("success"):
                 return {"status": "error", "message": res.get("error", "Order details not found.")}
 
-            details = res.get("details", {})
+            d_raw = res.get("details", {})
+            details = d_raw
+            if isinstance(d_raw, dict) and "data" in d_raw:
+                if isinstance(d_raw["data"], list) and len(d_raw["data"]) > 0:
+                    details = d_raw["data"][0]
+                elif isinstance(d_raw["data"], dict):
+                    details = d_raw["data"]
+
+            raw_price = details.get("grand_total") or details.get("subtotal") or details.get("total")
+            if raw_price is not None:
+                raw_str = str(raw_price).strip()
+                if raw_str.lower().startswith("rs"):
+                    price_str = "₹" + raw_str[2:].strip()
+                elif not raw_str.startswith("₹"):
+                    price_str = f"₹{raw_str}"
+                else:
+                    price_str = raw_str
+            else:
+                price_str = None
+
             return {
                 "status": "success",
                 "order_id": str(order_id),
                 "product_title": details.get("product_title"),
                 "current_order_status": details.get("current_order_status") or details.get("delivery_status_string"),
-                "grand_total": details.get("grand_total"),
-                "payment_status": details.get("payment_status_string") or details.get("payment_status"),
+                "grand_total": price_str,
+                "payment_status": details.get("payment_type") or details.get("payment_status_string") or details.get("payment_status"),
                 "order_date": details.get("order_date") or details.get("date"),
                 "order_flow": details.get("order_flow")
             }
